@@ -1,0 +1,22 @@
+# Makefile for busybox
+#
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
+#
+# Licensed under GPLv2, see file LICENSE in this source tree.
+#perly.o
+
+
+lib-y:=       
+
+
+INSERT
+
+lib-$(CONFIG_PERL)	        += av.o deb.o doio.o doop.o dump.o \
+	globals.o gv.o hv.o mro.o\
+	mg.o mperlmain.o op.o reentr.o \
+	pad.o perl.o perlio.o pp.o \
+	pp_ctl.o pp_hot.o pp_sys.o pp_pack.o pp_sort.o \
+	regcomp.o regexec.o run.o \
+	scope.o sv.o taint.o toke.o \
+	numeric.o locale.o mathoms.o \
+	universal.o utf8.o util.o perlapi.o keywords.o perly.o
