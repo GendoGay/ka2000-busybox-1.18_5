@@ -4645,4 +4645,8 @@ INSERT
        "wifi_filelist"
 #define wifi_filelist_full_usage "\n\n" \
        "wifi_filelist" 	   
+#define wifi_get_newest_file_trivial_usage \
+       "wifi_get_newest_file"
+#define wifi_get_newest_file_full_usage "\n\n" \
+       "wifi_get_newest_file"
 #endif
