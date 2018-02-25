@@ -1,13 +1,4 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
+
 #include "libbb.h"
 #include "buzzer.h"
 //#include "kcard.h"
@@ -192,6 +183,47 @@ int ftp_folder(char *dir_path, char *remote_path,char *user, char *pwd, char *ip
     return 0;
 }
 //-----------------------------------------------------------------------------------------------
+// get /mnt/sd/DCIM/ file list
+// skip all folder
+// just upload DCIM/ files
+int ftp_files(char *dir_path, char *remote_path, char *user, char *pwd, char *ip)
+{
+    DIR             *dir;
+    struct dirent *dit;
+    char file_path[1024];
+    char ftp_path[1024];
+    char ftp_cmd[4096];
+
+    int i=0,j=0, count;
+
+        dir = opendir(dir_path);
+
+    if (dir  == NULL)
+    {
+        printf("No DCIM Directory\n");
+        return 0;
+    }
+   
+     while ((dit = readdir(dir)) != NULL)
+    {
+     if(dit->d_name != NULL && strcmp(dit->d_name,".")!=0 && strcmp(dit->d_name,"..")!=0&& dit->d_type != DT_DIR )
+            {
+                printf("%s\n",dit->d_name);
+		  sprintf(file_path, "%s/%s", dir_path, dit->d_name);
+                sprintf(ftp_path, "%s/%s", "/sd/DCIM/123_FTP", dit->d_name);
+                sprintf(ftp_cmd, "ftpput -v -u %s -p %s %s %s %s", user, pwd, ip, ftp_path, file_path);
+                printf("%s\n", ftp_cmd);
+                system(ftp_cmd);
+                
+            }
+     	}
+
+	
+closedir(dir);
+
+    return 0;
+}
+//-----------------------------------------------------------------------------------------------
 // get /mnt/sd/DCIM folder list
 // skip control image folder, and upload folder
 // upload these folder
@@ -203,6 +235,8 @@ int ftp_all_folders(char *local_path, char *remote_path, char *user, char *pwd, 
     int i, n;
     char skip_p0[] = "199_WIFI";
     char skip_p1[] = "123_FTP";
+	
+    ftp_files(local_path, remote_path, user, pwd, ip);
 
     n = get_folder_list(local_path, &folder_list);
     if (n > 0 && folder_list != NULL)
@@ -266,7 +300,7 @@ int wifi_quick_send_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int wifi_quick_send_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
     play_sound (CONNECTION,1);
-    ftpsetting();
+   // ftpsetting();
 
     ftp_all_folders("/mnt/sd/DCIM", "/mnt/sd/DCIM/123_FTP", "guest", "guest", "192.168.1.1");
 	//ftp_all_folders("/mnt/sd/DCIM", "/sd/DCIM/123_FTP/", ftpconf.user,ftpconf.pwd, "192.168.1.1");

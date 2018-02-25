@@ -8,7 +8,7 @@ lib-y:=
 
 INSERT
 
-lib-$(CONFIG_KCARD_APP) += kcard_app.o
+lib-$(CONFIG_KCARD_APP) += kcard_app.o  fatattr.o
 lib-$(CONFIG_BUZZER) += buzzer.o
 lib-$(CONFIG_KCARD_STARTUP) += kcard_startup.o kionix_kxte9_driver.o
 lib-$(CONFIG_WIFI_GET_CONFIG) += wifi_get_config.o 
@@ -18,6 +18,22 @@ lib-$(CONFIG_WIFI_CONNECT_ROUTER) += wifi_connect_router.o
 lib-$(CONFIG_THUMBNAIL) += thumbNail.o 
 lib-$(CONFIG_THUMBNAIL_VIDEO) += thumbnail_video.o 
 lib-$(CONFIG_WIFI_DOWNLOAD) += wifi_download.o 
+
+#Kobby-20120116-Add for support web list
+lib-$(CONFIG_WIFI_GET_CONFIG_REAL) += wifi_get_config_real.o 
+lib-$(CONFIG_TSLIST) += tslist.o
+lib-$(CONFIG_TSCMD) += tscmd.o
+lib-$(CONFIG_TSLIB) += tslib.o ts_exif.o
+lib-$(CONFIG_INSTANT_SETUPD) += instant_setupd.o
+lib-$(CONFIG_IU_PROGRESSD) += iu_progressd.o
+lib-$(CONFIG_CMD_SERVER) += cmd_server.o
+lib-$(CONFIG_INSTANT_UPLOAD) += instant_upload.o
+lib-$(CONFIG_INSTANT_UPLOAD_CLEAN) += instant_upload_clean.o
+lib-$(CONFIG_WIFI_SET_CONFIG) += wifi_set_config.o
+lib-$(CONFIG_WIFI_GET_APCONFIG) += wifi_get_apconfig.o
+
 lib-$(CONFIG_WIFI_UPLOAD) += wifi_upload.o 
 lib-$(CONFIG_WIFI_FILELIST) += wifi_filelist.o 
 lib-$(CONFIG_KCARD_CMD) += kcard_cmd.o 
+lib-$(CONFIG_FS_INFO) += fs_info.o 
+lib-$(CONFIG_GEN_FILELIST) += gen_filelist.o 

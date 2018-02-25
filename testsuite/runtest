@@ -74,10 +74,8 @@ run_oldstyle_applet_tests()
 			*.mine) continue ;;    # svn-produced junk
 			*.r[0-9]*) continue ;; # svn-produced junk
 		esac
-		run_applet_testcase "$applet" "$testcase" || {
-			status=1
-			total_failed=$((total_failed + 1))
-		}
+		run_applet_testcase "$applet" "$testcase" || status=1
+		total_failed=$((total_failed + status))
 	done
 	return $status
 }

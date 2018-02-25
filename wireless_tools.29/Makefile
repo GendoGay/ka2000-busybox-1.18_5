@@ -36,14 +36,11 @@ RANLIB = ranlib
 # ***** Most users should not need to change anything beyond this point *****
 # ***************************************************************************
 
-# For combined with busybox.
-KA_CURDIR := $(dir $(lastword $(MAKEFILE_LIST)))
-
 # Version of the Wireless Tools
-WT_VERSION := $(shell sed -ne "/WT_VERSION/{s:\([^0-9]*\)::;p;q;}" < $(KA_CURDIR)/iwlib.h )
+WT_VERSION := $(shell sed -ne "/WT_VERSION/{s:\([^0-9]*\)::;p;q;}" < iwlib.h )
 
 # Version of Wireless Extensions.
-WE_VERSION := $(shell sed -ne "/WE_VERSION/{s:\([^0-9]*\)::;p;q;}" < $(KA_CURDIR)/iwlib.h )
+WE_VERSION := $(shell sed -ne "/WE_VERSION/{s:\([^0-9]*\)::;p;q;}" < iwlib.h )
 
 # Always use local header for wireless extensions
 WEXT_HEADER = wireless.$(WE_VERSION).h

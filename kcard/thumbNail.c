@@ -1,62 +1,22 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
-#include <string.h>
-#include <stdio.h>
-#include "libbb.h"
+#include <string.h> 
+#include <stdio.h> 
+#include "libbb.h" 
 #include <stdlib.h>
 
 
 static const unsigned char thumbnail_start[] = {0xFF, 0xD8};
 static const unsigned char app1data_start[] = {0xFF, 0xE1};
 
+#define LOG_LEVEL_INFO 0
+#define LOG_LEVEL_DEBUG 1
+
+static int _log_level = LOG_LEVEL_INFO;
+
+#define LOG_INFO(args...)	fprintf(stderr,"THUMB: " args)
+#define LOG_DEBUG(args...)   {if (_log_level >= LOG_LEVEL_DEBUG) fprintf(stderr,"THUMB: "args);}
 
 
-int ImageFileSearchthumbnail(register unsigned char *stream ,int file_size)
-{
-int start_offset = 0; 
-int i;
-	for(i=2; i < file_size; i++)
-	{
-		if(memcmp(stream+i, thumbnail_start, sizeof(thumbnail_start)) == 0)
-		{
-			start_offset = i;			
-			break;
-		}
-	}
-   //printf("thumbnail atart addr =%d",start_offset);
-   return start_offset;
-}
-
-int app1_data_size(register unsigned char *stream )
-{
-int start_offset = 0; 
-int i;
-int src_len = 0; 
-int apptal_size = 0;
-	for(i=0; i < 1024; i++)
-	{
-		if(memcmp(stream+i, app1data_start, sizeof(app1data_start)) == 0)
-		{
-			start_offset = i;
-
-			src_len |= stream[start_offset+2] << 8;
-			src_len |= stream[start_offset+3];
-			apptal_size = start_offset + src_len;
-			
-			break;
-		}
-	}
-	//printf("total size=%d",total_size);
-	return apptal_size;
-}
+static char thumbNail_pic_name[300] = "";
 
 unsigned short 	ImageFileGetWord ( register unsigned char *stream )
 {
@@ -71,6 +31,10 @@ unsigned short 	ImageFileGetWord ( register unsigned char *stream )
 {
 	printf("Content-Type: %s\n\n",h);
 }   
+ void setHeaderLength(int len)
+{
+	printf("Content-Length: %d\r\n",len);
+}
 
 int hex_to_int(char c)
 {
@@ -106,80 +70,225 @@ void decode_file_name(char *dst, char *src)
          }              
     }
 }
+int
+show_nothumb(void)
+{
+	FILE* pic;
+	char buf[512]={0};
+	int ret; 
+	
+	pic = fopen("/www/nothumb.jpg", "rb");
+	if (pic == NULL) {
+	   LOG_INFO( "No default ThumbNail %s\n","/www/nothumb.jpg" );
+	   return -1;
+	}
+	while ((ret = fread(buf,1,512,pic)) > 0) {
+		fwrite(buf, 1, ret, stdout);
+	}
 
+	fclose(pic);
+	return 0;
+}
+
+int 
+picture_is_raw(char *filename) 
+{
+	int len = strlen(filename);
+
+	if (len <= 4)
+		return 0;
+
+		/* Canon */
+	if (strcasecmp(filename+(len-4), ".cr2") == 0) {
+		return 1;
+	}
+		/* Nikon */
+	if (strcasecmp(filename+(len-4), ".nef") == 0 ||
+		strcasecmp(filename+(len-4), ".nrw") == 0	) {
+		return 1;
+	}
+		/* Olympus */
+	if (strcasecmp(filename+(len-4), ".orf") == 0) {
+		return 1;
+	}
+		/* Pentax */
+	if (strcasecmp(filename+(len-4), ".pef") == 0) {
+		return 1;
+	}
+		/* Leica */
+	if (strcasecmp(filename+(len-4), ".rwl") == 0) {
+		return 1;
+	}
+		/* Samsung */
+	if (strcasecmp(filename+(len-4), ".srw") == 0) {
+		return 1;
+	}
+		/* Panasonic */
+	if (strcasecmp(filename+(len-4), ".raw") == 0 ||
+		strcasecmp(filename+(len-4), ".rw2") == 0	) {
+		return 1;
+	}
+		/* Sony */
+	if (strcasecmp(filename+(len-4), ".arw") == 0 || 
+		strcasecmp(filename+(len-4), ".sr2") == 0 ||
+		strcasecmp(filename+(len-4), ".srf") == 0) {
+		return 1;
+	}
+		/* Kodak */
+	if (strcasecmp(filename+(len-4), ".dcr") == 0 || 
+		strcasecmp(filename+(len-4), ".k25") == 0 ||
+		strcasecmp(filename+(len-4), ".kdc") == 0) {
+		return 1;
+	}
+
+	LOG_DEBUG("%s is not raw file\n",filename);
+	return 0;
+}
+static int parse_thumb_size(char * filename) 
+{
+	char tmp_buf[256] = {0};
+	char cmd[256] = {0};
+	FILE * fd;
+	int size = -1;
+	sprintf(cmd, "/usr/bin/decraw -i -v \"%s\"",thumbNail_pic_name);
+	LOG_DEBUG("Execute %s  \n",cmd);
+	fd = popen(cmd ,"r");
+	if (fd == NULL) {
+		LOG_INFO("PIC %s, popen failed %d\n",thumbNail_pic_name);
+		return -1;
+	}
+	while (fgets(tmp_buf, 256, fd)) {
+		LOG_DEBUG("read %s\n",tmp_buf);
+		if (strncmp(tmp_buf, "Thumb output-length: ", strlen("Thumb output-length: ")) == 0) {
+			size = atoi(tmp_buf + strlen("Thumb output-length: "));
+			LOG_DEBUG("thumb length = %s %d\n", tmp_buf + strlen("Thumb output-length: "),size);
+			break;
+		}
+
+	}
+	pclose(fd);
+	return size;
+}
+
+#define MAX_THUMB_SIZE  (64*1024) //64k
 int thumbNail_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int thumbNail_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
-	FILE* pic_src;
 	char Destination[300];
-	char picName[300] = "";
-	
-	FILE *fp = NULL; 
-	
-	int addr=0;
-	int app1_size;
-	unsigned char* bufdata = NULL;
-	unsigned char* buf = NULL;
-    //FILE *log;
-	 
+	char thumb_buf[MAX_THUMB_SIZE] = {0};
+	struct exif_desc * desc;
+	int thumb_size=MAX_THUMB_SIZE;
 	char* get_data = getenv("QUERY_STRING");
-	
-	//log = fopen("log.txt", "at");
-	//fprintf(log, "\n------\nget_data=%s\n", get_data);
+	FILE * fd;
 	
 	disable_kcard_call();
 	if (get_data != NULL)
 	{
 		char* val = strstr(get_data, "fn=");
-		//fprintf(log, "val=%s\n", val);
+		char * token_val = NULL;
+		char * next_token = strstr(get_data, "&");
+		//fprintf(stderr, "val=%s, next_token %p\n", val,next_token);
 		if (val != NULL)
 		{
-			strcpy(Destination, val+3);
-			//fprintf(log, "Destination=%s\n", Destination);
+			if (next_token == NULL) {
+				strcpy(Destination, val+3);
+			} else  {
+				strncpy(Destination, val+3,next_token - (val+3));
+			}
+			//fprintf(stderr, "Destination = %s\n",Destination);
 		}
-		else
-			printf("Get false parameter!\n");
+		else {
+			fprintf(stderr,"Get false parameter!\n");
+			return -1;
+		}
+
+		if (next_token) {
+			token_val = strstr(next_token, "DEBUG");
+			if (token_val){
+				_log_level = LOG_LEVEL_DEBUG;
+			}
+		}
+
+		LOG_DEBUG("val %s Destination = %s, token_val %s\n",val,Destination,(token_val)?token_val:"NULL");
 	}
 
-	//strcat(picName, Destination);
-	decode_file_name(picName, Destination);
+	//strcat(thumbNail_pic_name, Destination);
+	decode_file_name(thumbNail_pic_name, Destination);
 	
-    //fprintf(log, "picName=%s\n", picName);
-   
-	pic_src = fopen(picName, "rb");
-    //fclose(log);
-	if(pic_src)
-	{
+	LOG_DEBUG("PIC %s, Log level %d\n",thumbNail_pic_name,_log_level);
+    //fprintf(log, "thumbNail_pic_name=%s\n", thumbNail_pic_name);
+
+	fd = fopen(thumbNail_pic_name, "r");
+	if (fd == NULL){
+		enable_kcard_call();
+		fprintf(stdout,"Status: 404 Not Found\r\n\r\n"); 
+		LOG_INFO("PIC %s, open failed!\n",thumbNail_pic_name);
+
+		return 0;
+	}
+	fclose(fd);
+
+	if (picture_is_raw(thumbNail_pic_name)) {
+		char cmd[256] = {0};
+		int ret = 0;
+		int thumb_real_size = 0 ;
+
+		thumb_real_size = parse_thumb_size(thumbNail_pic_name);
+		if (thumb_real_size < 0) {
+			LOG_INFO("PIC %s, get thumbsize failed %d\n",thumbNail_pic_name);
+			enable_kcard_call();
+			show_nothumb();
+			return 0;
+		}
+		/* Raw format use decraw tool to extract thumbnail. */
+		setHeaderLength(thumb_real_size);
+		setHeader("image/jpeg");	
+		sprintf(cmd, "/usr/bin/decraw -c -e \"%s\"",thumbNail_pic_name);
+		LOG_DEBUG("Execute %s  \n",cmd);
+		fd = popen(cmd ,"rb");
+		if (fd == NULL) {
+			LOG_INFO("PIC %s, popen failed %d\n",thumbNail_pic_name);
+			enable_kcard_call();
+			show_nothumb();
+			return 0;
+		}
+		while ((ret = fread(thumb_buf, 1, thumb_size, fd)) > 0) {
+			LOG_DEBUG("freadd size %d\n",ret);
+			fwrite(thumb_buf, 1, ret, stdout);
+			if (ret < thumb_size) {
+				pclose(fd);
+				enable_kcard_call();
+				return 0;
+			}
+		}
+		pclose(fd);
+		enable_kcard_call();
+		return 0;
+		
+	} else {
+		exif_set_log(_log_level) ;
+		exif_set_scan_size(64*1024);
 
 		setHeader("image/jpeg");	
-		fseek(pic_src, 0, SEEK_SET);
-		bufdata = (unsigned char*)calloc(1, 1024);
-		fread(bufdata, 1, 1024, pic_src);
-		if(ImageFileGetWord(bufdata)!=0xFFD8)
-	  	{
-        		printf("not jpeg file");
-        		free(bufdata);
-        		return -1;
-    	}	
-		app1_size=app1_data_size(bufdata);
-		free(bufdata);
-		fseek(pic_src, 0, SEEK_SET);
-		buf = (unsigned char*)calloc(1, app1_size);
-		fread(buf, 1, app1_size, pic_src);
-		addr=ImageFileSearchthumbnail(buf,app1_size);
-		fwrite(buf+addr, 1, app1_size-addr+3, stdout);
-		free(buf);
-		
-         	enable_kcard_call();
-	return 0;
+		desc = exif_desc_alloc(thumbNail_pic_name);
+		if (desc == NULL) {
+			LOG_INFO("%s: %s exif descriptor alloc failed\n",__FUNCTION__,thumbNail_pic_name);
+			enable_kcard_call();
+			show_nothumb();
+			return 0;
+		}
+		if (exif_get_thumbnail(desc,thumb_buf,&thumb_size) < 0) {
+			LOG_INFO("%s: %s Can't get thumbnail %d\n",__FUNCTION__,thumbNail_pic_name,thumb_size);
+			enable_kcard_call();
+			show_nothumb();
+			return 0;
+		}
+		enable_kcard_call();
+		exif_desc_free(desc);
+		fwrite(thumb_buf, 1, thumb_size, stdout);
 	}
-	else
-      {
-		printf("It cannot find file\n");
-		return -1;
-	}
-
 	
+	return 0;
 }
 
 

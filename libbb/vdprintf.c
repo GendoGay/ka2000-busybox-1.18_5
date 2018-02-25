@@ -12,10 +12,10 @@
 #if defined(__GLIBC__) && __GLIBC__ < 2
 int FAST_FUNC vdprintf(int d, const char *format, va_list ap)
 {
-	char buf[8 * 1024];
+	char buf[BUF_SIZE];
 	int len;
 
-	len = vsnprintf(buf, sizeof(buf), format, ap);
+	len = vsnprintf(buf, BUF_SIZE, format, ap);
 	return write(d, buf, len);
 }
 #endif

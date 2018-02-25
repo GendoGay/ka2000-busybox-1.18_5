@@ -4,7 +4,7 @@
  */
 
 #include "libbb.h"
-#include "bb_archive.h"
+#include "archive.h"
 
 void FAST_FUNC data_align(archive_handle_t *archive_handle, unsigned boundary)
 {

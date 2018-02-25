@@ -1,20 +1,26 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
 #include <stdlib.h>
 #include <stdio.h>
 #include "libbb.h"
 #include <string.h>
 
 #define DEBUG_MARKER 0
+#define LOG_LEVEL_INFO 0
+#define LOG_LEVEL_DEBUG 1
 
+static int _thumb_log_level = LOG_LEVEL_INFO;
+
+#define LOG_INFO(args...)	fprintf(stderr,"THUMBV: " args)
+#define LOG_DEBUG(args...)   {if (_thumb_log_level >= LOG_LEVEL_DEBUG) fprintf(stderr,"THUMBV: "args);}
+#define LOG_DEBUG_IS_ENABLE() (_thumb_log_level >= LOG_LEVEL_DEBUG) 
+
+
+
+#define MAX_THUMB_SIZE (256*1024) //Maximum thumbnail size
+#define MAX_SEARCH_SIZE (3*1024*1024)
+static char thumb_buffer[MAX_THUMB_SIZE] = {0};
+static unsigned int current_thumb_index=0;
+static int eoi_found = 0;
+static int soi_found = 0;
 typedef enum  			/* JPEG marker codes */
 {
     M_SOF0  = 0xc0,
@@ -252,13 +258,14 @@ int save_thumb(unsigned char *buf, int size, int m_dht)
 }
 #else
 
-void setHeader1(char* h)
+void setHeader1(const char* h)
 {
 	printf("Content-Type: %s\n\n",h);
 }
-int save_thumb(unsigned char *buf, int size, int m_dht)
+int save_thumb(char *buf, int size, int m_dht __attribute__((unused)))
 {
-    setHeader1("image/jpeg");
+	LOG_DEBUG("save_thumb size %d\n",size);
+	setHeader1("image/jpeg");
     fwrite(buf, 1, size, stdout);
     return 0;
 }
@@ -266,7 +273,6 @@ int save_thumb(unsigned char *buf, int size, int m_dht)
 
 void dump_buffer(unsigned char *buf, int len)
 {
-#if DEBUG_MARKER
     int j;
 
     for (j = 0; j < len; j++)
@@ -276,7 +282,6 @@ void dump_buffer(unsigned char *buf, int len)
             printf("\n");
     }
     printf("\n");
-#endif
 }
 
 int read_markers (unsigned char *buf, int size)
@@ -324,6 +329,148 @@ int read_markers (unsigned char *buf, int size)
             }
         }
     }
+//	printf("read_markers: not M_EOF found. M_SOI %d\n",m_soi);
+}
+int read_markers_new (unsigned char *buf, int size,FILE* src_fd)
+{
+    int i, len;
+    unsigned char m;
+    int m_soi = 0;
+    int m_eoi = 0;
+    int mark[256] = {0};
+	unsigned int temp = 0;
+
+	const unsigned char tiff_header_start_le[] = {0x49, 0x49, 0x2a,0x00};
+	const unsigned char tiff_header_start_be[] = {0x4d, 0x4d, 0x00,0x2a};
+
+    for (i = 0; i < size; i++) {
+        if (buf[i] == 0xff) {
+            m = buf[i+1];
+
+            if (m == 0xff)
+                continue;
+
+            /* search for Start of image */
+            if (m == M_SOI) {
+				if (i+3 < size) {
+					if (buf[i+2] == 0xff && (buf[i+3] == M_DQT || buf[i+3] == M_APP1)) {
+						if (soi_found) {
+							LOG_DEBUG("read_markers_new: Find double SOI\n");
+							current_thumb_index = 0;
+
+							//return -1;
+						}
+						m_soi = i;
+						soi_found = 1;
+						LOG_DEBUG("%s: Find SOI %u ,buf[%u]=%02x ,buf[%u]=%02x\n",__FUNCTION__,m_soi,i+2,buf[i+2],i+3,buf[i+3]);
+
+						if (buf[i+3] == M_APP1) {
+							int tiff_oft;
+							int ifd1_oft; 
+							int app1_size;
+							int addr=0;
+							int thumb_size=0;
+							char * new_buf = NULL;
+
+							tiff_oft = ImageFileSearchTiffHeader(buf,1024);
+							if (tiff_oft <=0 ){
+								LOG_DEBUG("%s: Can't find thumbnail length\n",__FUNCTION__);
+								return -1;
+							}
+
+							app1_size = app1_data_size(buf);
+							LOG_DEBUG("%s: APP1 Length = %d\n",app1_size);
+
+							fseek(src_fd, 0, SEEK_SET);
+
+							new_buf = (unsigned char*)calloc(1, app1_size);
+							fread(new_buf, 1, app1_size, src_fd);
+
+							ifd1_oft = ImageFileSearchFirstIFD(new_buf,app1_size,tiff_oft);
+							if (ifd1_oft <= 0){
+								LOG_DEBUG("%s: Can't find Fist IFD\n",__FUNCTION__);
+								return -1;
+							}
+							ifd1_oft = ifd1_oft + tiff_oft;
+							addr = ImageFileSearchthumbnailOffset(new_buf,app1_size,ifd1_oft);
+							if (addr <= 0){
+								LOG_DEBUG("%s: Can't find thumbnail offset\n",__FUNCTION__);
+								return -1;
+							}
+
+							addr = addr + tiff_oft;
+							thumb_size =ImageFileSearchthumbnailLength(new_buf,app1_size,ifd1_oft);
+							if (thumb_size <= 0){
+								LOG_DEBUG("%s: Can't find thumbnail length\n",__FUNCTION__);
+								return -1;
+							}
+
+							save_thumb(new_buf+addr,thumb_size, mark[M_DHT]);
+							free(new_buf);
+							eoi_found = 1;
+							return 1;
+						}
+
+					}else {
+						LOG_DEBUG("%s: Find Vague SOI index %d ,Clear SOI buf[%u]=%02x-%02x-%02x-%02x\n",__FUNCTION__,i,i+2,buf[i+2],buf[i+3],buf[i+4],buf[i+5]);
+						soi_found = 0;
+						m_soi = 0;
+					}
+				}
+			}
+
+            /* still wait for SOI */
+            if (m_soi == 0 && soi_found == 0)
+                continue;
+
+            mark[m] = i;
+#if DEBUG_MARKER
+            len = (buf[i+2] << 8) | buf[i+3];
+            print_marker(m, i, len);
+
+            if (m == M_DHT)
+            {
+                dump_buffer(buf + i, len + 2);
+            }
+#endif
+            /* End of Image */
+            if (m == M_EOI)
+            {
+				eoi_found = 1;
+                m_eoi = i;
+
+				temp += (m_eoi - m_soi + 2);
+				if (temp > MAX_THUMB_SIZE) {
+					LOG_INFO("%s: Copy to Buffer: data length %d too long! MAX %d\n",__FUNCTION__,temp,MAX_THUMB_SIZE);
+					return -1;
+				}
+				LOG_INFO("%s: EOI Found,Copy to Buffer: Addr %p length %d\n",__FUNCTION__,buf+ m_soi,m_eoi - m_soi + 2);
+				memcpy(thumb_buffer+current_thumb_index, buf+ m_soi, m_eoi - m_soi + 2);
+				current_thumb_index +=  m_eoi - m_soi + 2;
+
+                //printf("soi %d eoi %d, dqt %d\n", m_soi, m_eoi, mark[M_DQT]);
+                //save_thumb(buf + m_soi, m_eoi - m_soi + 2, mark[M_DHT]);
+                save_thumb(thumb_buffer, current_thumb_index, mark[M_DHT]);
+                return m_eoi;
+            }
+        }
+    }
+	if (soi_found == 1) {
+		m_eoi = size - 1;
+		//save_thumb(buf + m_soi, m_eoi - m_soi + 2, mark[M_DHT]);
+		temp = current_thumb_index;
+		temp += (m_eoi - m_soi + 2);
+		if (temp > MAX_THUMB_SIZE) {
+			LOG_INFO("%s: Copy to Buffer: data length %d too long! MAX %d\n",__FUNCTION__,temp,MAX_THUMB_SIZE);
+			return -1;
+		}
+
+		LOG_DEBUG("%s: Copy partial to Buffer: addr %p length %d\n",__FUNCTION__,buf+ m_soi,m_eoi - m_soi + 2);
+		memcpy(thumb_buffer+current_thumb_index, buf+ m_soi, m_eoi - m_soi + 2);
+		current_thumb_index +=  m_eoi - m_soi + 2;
+	} 
+	return m_soi;
+//	printf("read_markers: not M_EOF found. M_SOI %d\n",m_soi);
 }
 
 int find_jpeg_thumb_file(char *imageName)
@@ -371,34 +518,49 @@ int extract_jpeg_frame(char *imageName)
     int search_size = 256 * 1024;
     unsigned char* buffer_source = NULL;
     FILE* src;
+	int ret = 0;
+	int final = 0;
+	unsigned int total_size =0;
+	unsigned int max_size = MAX_SEARCH_SIZE;
+	struct exif_desc * desc;
+	int thumb_size  = MAX_THUMB_SIZE;
 
-    if (find_jpeg_thumb_file(imageName) == 0)
+
+    if (find_jpeg_thumb_file(imageName) == 0) {
+		LOG_INFO("thumbnail_video: %s Find off-the-shelf thumbnail\n",imageName);
         return 0;
+	}
 
-    //printf("name %s\n", imageName);
     src = fopen(imageName, "rb");
-
-    if (!src)
-    {
-        fprintf(stderr, "Cannot find selected file\n");
+    if (!src) {
+        LOG_INFO("%s: Cannot find selected file\n",imageName);
         return -1;
     }
 
-    /* seek to file start point */
-    fseek(src, 0, SEEK_SET);
+	exif_set_log(_thumb_log_level) ;
+	exif_set_scan_size(max_size);
+	exif_set_scan_block_size(MAX_THUMB_SIZE);
 
-    /* allocate buffer for read and parsing */
-    buffer_source = (unsigned char*)calloc(1, search_size);
+	desc = exif_desc_alloc(imageName);
+	if (desc == NULL) {
+		LOG_INFO("%s: %s exif descriptor alloc failed\n",__FUNCTION__,imageName);
+		enable_kcard_call();
+		setHeader1("image/jpeg");
+		show_nothumb();
+		return 0;
+	}
+	if (exif_get_jpeg(desc,thumb_buffer,&thumb_size) < 0){
+		LOG_INFO("%s: %s Can't get thumbnail %d\n",__FUNCTION__,imageName,thumb_size);
+		enable_kcard_call();
+		setHeader1("image/jpeg");
+		show_nothumb();
+		return 0;
+	}
 
-    /* read and fill buffer */
-    fread(buffer_source, 1, search_size, src);
+	exif_desc_free(desc);
+	save_thumb(thumb_buffer, thumb_size, NULL); 
 
-    /* trace marker and extract jpeg */
-    read_markers(buffer_source, search_size);
-
-    /* at the end close the source file */
-    fclose(src);
-    return 0;
+	return 0;
 }
 
 
@@ -410,31 +572,46 @@ int thumbnail_video_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
     char imageName[300] = "P1070802.MOV";
     char Destination[300];
-    disable_kcard_call();
-
     char* get_data = getenv("QUERY_STRING");
 
+    disable_kcard_call();
 	//FILE *log = fopen("log.txt", "at");
 	//fprintf(log, "\n------\nget_data=%s\n", get_data);
-    if (get_data != NULL)
-    {
-        char* val = strstr(get_data, "fn=");
-        if (val != NULL)
-        {
-            strcpy(imageName, val+3);
+    if (get_data != NULL) {
+		char * val = NULL;
+		char * token_val = NULL;
+		char * next_token = NULL;
+
+        val = strstr(get_data, "fn=");
+		next_token = strstr(get_data, "&");
+        if (val != NULL) {
+			if (next_token == NULL) {
+				strcpy(imageName, val+3);
+			} else {
+				strncpy(imageName, val+3,next_token - (val+3));
+			}
+        } else {
+            LOG_INFO("Can't find filename parameter!\n");
+			return -1;
         }
-        else
-        {
-            printf("False parameter!\n");
-        }
+#if 1
+		if (next_token) {
+			token_val = strstr(next_token,"DEBUG");
+			if (token_val != NULL) {
+				_thumb_log_level = LOG_LEVEL_DEBUG;
+			}
+		}
+#endif
+
+    } else {
+        LOG_INFO("No parameter!\n");
     }
-    else
-    {
-        printf("No parameter!\n");
-    }
+	
     //fprintf(log, "\n------\imageName=%s\n", imageName);
     decode_file_name(Destination, imageName);
-    //fprintf(log, "\n------\Destination=%s\n", Destination);
+
+    LOG_DEBUG("imageName %s, Log = %d\n",Destination,_thumb_log_level);
+
     extract_jpeg_frame(Destination);
 
     //fclose(log);

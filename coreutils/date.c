@@ -19,7 +19,7 @@
 /* Input parsing code is always bulky - used heavy duty libc stuff as
    much as possible, missed out a lot of bounds checking */
 
-//applet:IF_DATE(APPLET(date, BB_DIR_BIN, BB_SUID_DROP))
+//applet:IF_DATE(APPLET(date, _BB_DIR_BIN, _BB_SUID_DROP))
 
 //kbuild:lib-$(CONFIG_DATE) += date.o
 
@@ -42,8 +42,7 @@
 //config:config FEATURE_DATE_NANO
 //config:	bool "Support %[num]N nanosecond format specifier"
 //config:	default n
-//config:	depends on DATE  # syscall(__NR_clock_gettime)
-//config:	select PLATFORM_LINUX
+//config:	depends on DATE && PLATFORM_LINUX # syscall(__NR_clock_gettime)
 //config:	help
 //config:	  Support %[num]N format specifier. Adds ~250 bytes of code.
 //config:
@@ -98,6 +97,7 @@
 //usage:       "[OPTIONS] [+FMT] [TIME]"
 //usage:#define date_full_usage "\n\n"
 //usage:       "Display time (using +FMT), or set time\n"
+//usage:     "\nOptions:"
 //usage:	IF_NOT_LONG_OPTS(
 //usage:     "\n	[-s] TIME	Set time to TIME"
 //usage:     "\n	-u		Work in UTC (don't convert to local time)"
@@ -129,9 +129,6 @@
 //usage:     "\n	[YYYY.]MM.DD-hh:mm[:ss]"
 //usage:     "\n	YYYY-MM-DD hh:mm[:ss]"
 //usage:     "\n	[[[[[YY]YY]MM]DD]hh]mm[.ss]"
-//usage:	IF_FEATURE_DATE_COMPAT(
-//usage:     "\n	'date TIME' form accepts MMDDhhmm[[YY]YY][.ss] instead"
-//usage:	)
 //usage:
 //usage:#define date_example_usage
 //usage:       "$ date\n"
@@ -253,10 +250,7 @@ int date_main(int argc UNUSED_PARAM, char **argv)
 		ts.tv_sec = statbuf.st_mtime;
 #if ENABLE_FEATURE_DATE_NANO
 		ts.tv_nsec = statbuf.st_mtim.tv_nsec;
-		/* Some toolchains use .st_mtimensec instead of st_mtim.tv_nsec.
-		 * If you need #define _SVID_SOURCE 1 to enable st_mtim.tv_nsec,
-		 * drop a mail to project mailing list please
-		 */
+		/* some toolchains use .st_mtimensec instead of st_mtim.tv_nsec */
 #endif
 	} else {
 #if ENABLE_FEATURE_DATE_NANO
@@ -285,9 +279,7 @@ int date_main(int argc UNUSED_PARAM, char **argv)
 		}
 
 		/* Correct any day of week and day of year etc. fields */
-		/* Be sure to recheck dst (but not if date is time_t format) */
-		if (date_str[0] != '@')
-			tm_time.tm_isdst = -1;
+		tm_time.tm_isdst = -1;  /* Be sure to recheck dst */
 		ts.tv_sec = validate_tm_time(date_str, &tm_time);
 
 		maybe_set_utc(opt);

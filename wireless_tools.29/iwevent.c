@@ -58,6 +58,7 @@ typedef struct wireless_iface
 
 /* Cache of wireless interfaces */
 struct wireless_iface *	interface_cache = NULL;
+char * script = NULL;
 
 /************************ RTNETLINK HELPERS ************************/
 /*
@@ -82,6 +83,66 @@ struct rtnl_handle
 	__u32			seq;
 	__u32			dump;
 };
+
+/* put all the parameters into the environment */
+static char **fill_envp(char * event,char * data)
+{
+	int envc;
+	int i;
+	char **envp, **curr;
+	const char *opt_name;
+	uint8_t *temp;
+	uint8_t overload = 0;
+
+	/* We need 6 elements for:
+	 * "interface=IFACE"
+	 * "ip=N.N.N.N" from packet->yiaddr
+	 * "siaddr=IP" from packet->siaddr_nip (unless 0)
+	 * "boot_file=FILE" from packet->file (unless overloaded)
+	 * "sname=SERVER_HOSTNAME" from packet->sname (unless overloaded)
+	 * terminating NULL
+	 */
+	envc = 2;
+	/* +1 element for each option, +2 for subnet option: */
+	curr = envp = xzalloc(sizeof(char *) * envc);
+
+	*curr = xasprintf("EVENT=%s", event);
+	putenv(*curr++);
+
+	if (!data)
+		return envp;
+
+
+	*curr = xasprintf("DATA=%s", data);
+	putenv(*curr++);
+
+	return envp;
+}
+
+/* Call a script with a par file and env vars */
+static void run_script(char *event, const char *data)
+{
+	char **envp, **curr;
+	char *argv[3];
+
+	if (script == NULL)
+		return;
+
+	envp = fill_envp(event, data);
+
+	/* call script */
+	//fprintf(stderr,"Executing %s %s", script, data);
+	argv[0] = (char*) script;
+	argv[1] = (char*) event;
+	argv[2] = NULL;
+	spawn_and_wait(argv);
+
+	for (curr = envp; *curr; curr++) {
+		//log2(" %s", *curr);
+		bb_unsetenv_and_free(*curr);
+	}
+	free(envp);
+}
 
 static inline void rtnl_close(struct rtnl_handle *rth)
 {
@@ -394,13 +455,16 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
     case SIOCGIWAP:
       printf("New Access Point/Cell address:%s\n",
 	     iw_sawap_ntop(&event->u.ap_addr, buffer));
+      run_script("SIOCGIWAP",iw_sawap_ntop(&event->u.ap_addr, buffer));
       break;
     case SIOCGIWSCAN:
       printf("Scan request completed\n");
+      run_script("SIOCGIWSCAN",NULL);
       break;
     case IWEVTXDROP:
       printf("Tx packet dropped:%s\n",
 	     iw_saether_ntop(&event->u.addr, buffer));
+      run_script("IWEVTXDROP",iw_saether_ntop(&event->u.addr, buffer));
       break;
     case IWEVCUSTOM:
       {
@@ -409,15 +473,18 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
 	if((event->u.data.pointer) && (event->u.data.length))
 	  memcpy(custom, event->u.data.pointer, event->u.data.length);
 	printf("Custom driver event:%s\n", custom);
+        run_script("IWEVCUSTOM",custom);
       }
       break;
     case IWEVREGISTERED:
       printf("Registered node:%s\n",
 	     iw_saether_ntop(&event->u.addr, buffer));
+      run_script("IWEVREGISTERED",iw_saether_ntop(&event->u.addr, buffer));
       break;
     case IWEVEXPIRED:
       printf("Expired node:%s\n",
 	     iw_saether_ntop(&event->u.addr, buffer));
+      run_script("IWEVEXPIRED", iw_saether_ntop(&event->u.addr, buffer));
       break;
     case SIOCGIWTHRSPY:
       {
@@ -454,11 +521,18 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
       printf("Association Request IEs:%s\n",
 	     iw_hexdump(buffer, sizeof(buffer),
 			event->u.data.pointer, event->u.data.length));
+      run_script("IWEVASSOCREQIE", iw_hexdump(buffer, sizeof(buffer),
+			                              event->u.data.pointer,
+						      event->u.data.length));
       break;
     case IWEVASSOCRESPIE:
       printf("Association Response IEs:%s\n",
 	     iw_hexdump(buffer, sizeof(buffer),
 			event->u.data.pointer, event->u.data.length));
+
+      run_script("IWEVASSOCRESPIE", iw_hexdump(buffer, sizeof(buffer),
+			                              event->u.data.pointer,
+						      event->u.data.length));
       break;
     case IWEVPMKIDCAND:
       if(event->u.data.length >= sizeof(struct iw_pmkid_cand))
@@ -468,6 +542,8 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
 	  printf("PMKID candidate flags:0x%X index:%d bssid:%s\n",
 		 cand.flags, cand.index,
 		 iw_saether_ntop(&cand.bssid, buffer));
+
+	  run_script("IWEVPMKIDCAND", iw_saether_ntop(&cand.bssid, buffer));
 	}
       break;
       /* ----- junk ----- */
@@ -475,9 +551,11 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
     case SIOCGIWRATE:
       iw_print_bitrate(buffer, sizeof(buffer), event->u.bitrate.value);
       printf("New Bit Rate:%s\n", buffer);
+      run_script("SIOCGIWRATE", buffer);
       break;
     case SIOCGIWNAME:
       printf("Protocol:%-1.16s\n", event->u.name);
+      run_script("SIOCGIWNAME",  event->u.name);
       break;
     case IWEVQUAL:
       {
@@ -485,10 +563,12 @@ print_event_token(struct iw_event *	event,		/* Extracted token */
 	iw_print_stats(buffer, sizeof(buffer),
 		       &event->u.qual, iw_range, has_range);
 	printf("Link %s\n", buffer);
+        run_script("IWEVQUAL", buffer); 
 	break;
       }
     default:
       printf("(Unknown Wireless event 0x%04X)\n", event->cmd);
+      run_script("UNKOWN", NULL);
     }	/* switch(event->cmd) */
 
   return(0);
@@ -750,6 +830,7 @@ iw_usage(int status)
 static const struct option long_opts[] = {
   { "help", no_argument, NULL, 'h' },
   { "version", no_argument, NULL, 'v' },
+  { "script" , required_argument, NULL, 's' },
   { NULL, 0, NULL, 0 }
 };
 
@@ -761,9 +842,10 @@ int iwevent_main(int argc, char **argv)
 {
   struct rtnl_handle	rth;
   int opt;
+  int len;
 
   /* Check command line options */
-  while((opt = getopt_long(argc, argv, "hv", long_opts, NULL)) > 0)
+  while((opt = getopt_long(argc, argv, "hvs:", long_opts, NULL)) > 0)
     {
       switch(opt)
 	{
@@ -773,6 +855,13 @@ int iwevent_main(int argc, char **argv)
 
 	case 'v':
 	  return(iw_print_version_info("iwevent"));
+	  break;
+
+	case 's':
+	  len = strlen(optarg);
+	  script = calloc(1, len + 1);
+	  strcpy(script,optarg);
+	  fprintf(stderr,"script %s\n",script);
 	  break;
 
 	default:

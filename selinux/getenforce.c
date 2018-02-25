@@ -7,9 +7,6 @@
  * Licensed under GPLv2, see file LICENSE in this source tree.
  */
 
-//usage:#define getenforce_trivial_usage NOUSAGE_STR
-//usage:#define getenforce_full_usage ""
-
 #include "libbb.h"
 
 int getenforce_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;

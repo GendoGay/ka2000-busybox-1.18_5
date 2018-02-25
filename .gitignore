@@ -18,7 +18,6 @@ Config.in
 # Normal output
 #
 /busybox
-/busybox_old
 /busybox_unstripped*
 
 #

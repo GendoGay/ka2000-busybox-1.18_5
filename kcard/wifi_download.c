@@ -1,13 +1,3 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -21,12 +11,12 @@
 #include "common.h"
 
 int wifi_download_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
-int download_file_size(char* file_name)
+uint32_t download_file_size(char* file_name)
 {
     struct stat buf;
     int i = stat ( file_name, &buf );
 
-    printf("file_name %s\n",file_name);
+//    printf("file_name %s\n",file_name);
     if (i !=0)
         printf("state error");
 
@@ -134,15 +124,16 @@ int wifi_download_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
     int len = 0;
     ssize_t full_write_num;
     int stdout = STDOUT_FILENO;
-    int file_size = download_file_size(fullName);
+    uint32_t file_size = download_file_size(fullName);
     int offset = 0;
+    int ret;
 #define RDBUF_SIZE 8192
     buf = malloc(RDBUF_SIZE);
     memset(buf, 0, RDBUF_SIZE);
 
     /*send header at first */
     strcpy(buf,"Content-Type: application/force-download\n");
-    sprintf(buf+strlen(buf), "Content-Length: %d\n", file_size);
+    sprintf(buf+strlen(buf), "Content-Length: %u\n", file_size);
     strcat(buf,"Content-Transfer-Encoding: binary\n");
     strcat(buf, "Accept-Ranges: bytes\n");
     strcat(buf, "Keep-Alive: 120\n");
@@ -155,19 +146,27 @@ int wifi_download_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
     fd = open(fullName, O_RDONLY);
     readahead(fd, offset, RDBUF_SIZE);
 
-    while (file_size > 0)
-    {
-        read_count = read(fd, buf, RDBUF_SIZE);
-        if (read_count > 0)
-        {
-            file_size -= read_count;
-            readahead(fd, offset, RDBUF_SIZE);
-            offset += RDBUF_SIZE;
-            full_write_num = full_write(stdout, buf, read_count);
-            if (read_count != full_write_num)
-                break;
-        }
-    }
+    while (file_size > 0) {
+		read_count = read(fd, buf, RDBUF_SIZE);
+		if (read_count > 0) {
+			file_size -= read_count;
+			readahead(fd, offset, RDBUF_SIZE);
+			offset += RDBUF_SIZE;
+			full_write_num = full_write(stdout, buf, read_count);
+
+			if (read_count != full_write_num)
+				break;
+
+		} else {
+			ret = errno;
+			fprintf(stderr,"%s: read sz %d failed. err %s\n",
+					__FUNCTION__,RDBUF_SIZE,strerror(ret));
+
+			if (ret != EAGAIN && ret != EWOULDBLOCK) {
+				break;
+			}
+		}
+	}
 
 
     free(buf);

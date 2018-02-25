@@ -25,7 +25,7 @@
  */
 
 #include "libbb.h"
-#include "bb_archive.h"
+#include "archive.h"
 
 
 /* Default input buffer size */
@@ -73,7 +73,7 @@
  */
 
 IF_DESKTOP(long long) int FAST_FUNC
-unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
+unpack_Z_stream(int fd_in, int fd_out)
 {
 	IF_DESKTOP(long long total_written = 0;)
 	IF_DESKTOP(long long) int retval = -1;
@@ -103,19 +103,16 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 	/* block compress mode -C compatible with 2.0 */
 	int block_mode; /* = BLOCK_MODE; */
 
-	if (check_signature16(aux, src_fd, COMPRESS_MAGIC))
-		return -1;
-
 	inbuf = xzalloc(IBUFSIZ + 64);
 	outbuf = xzalloc(OBUFSIZ + 2048);
-	htab = xzalloc(HSIZE);  /* wasn't zeroed out before, maybe can xmalloc? */
+	htab = xzalloc(HSIZE);  /* wsn't zeroed out before, maybe can xmalloc? */
 	codetab = xzalloc(HSIZE * sizeof(codetab[0]));
 
 	insize = 0;
 
 	/* xread isn't good here, we have to return - caller may want
 	 * to do some cleanup (e.g. delete incomplete unpacked file etc) */
-	if (full_read(src_fd, inbuf, 1) != 1) {
+	if (full_read(fd_in, inbuf, 1) != 1) {
 		bb_error_msg("short read");
 		goto err;
 	}
@@ -165,9 +162,8 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 		}
 
 		if (insize < (int) (IBUFSIZ + 64) - IBUFSIZ) {
-			rsize = safe_read(src_fd, inbuf + insize, IBUFSIZ);
-			if (rsize < 0)
-				bb_error_msg_and_die(bb_msg_read_error);
+			rsize = safe_read(fd_in, inbuf + insize, IBUFSIZ);
+//error check??
 			insize += rsize;
 		}
 
@@ -199,8 +195,6 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 
 
 			if (oldcode == -1) {
-				if (code >= 256)
-					bb_error_msg_and_die("corrupted data"); /* %ld", code); */
 				oldcode = code;
 				finchar = (int) oldcode;
 				outbuf[outpos++] = (unsigned char) finchar;
@@ -245,8 +239,6 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 
 			/* Generate output characters in reverse order */
 			while ((long) code >= (long) 256) {
-				if (stackp <= &htabof(0))
-					bb_error_msg_and_die("corrupted data");
 				*--stackp = tab_suffixof(code);
 				code = tab_prefixof(code);
 			}
@@ -271,7 +263,8 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 						}
 
 						if (outpos >= OBUFSIZ) {
-							xwrite(dst_fd, outbuf, outpos);
+							full_write(fd_out, outbuf, outpos);
+//error check??
 							IF_DESKTOP(total_written += outpos;)
 							outpos = 0;
 						}
@@ -299,7 +292,8 @@ unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd)
 	} while (rsize > 0);
 
 	if (outpos > 0) {
-		xwrite(dst_fd, outbuf, outpos);
+		full_write(fd_out, outbuf, outpos);
+//error check??
 		IF_DESKTOP(total_written += outpos;)
 	}
 

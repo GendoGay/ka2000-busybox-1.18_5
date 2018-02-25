@@ -10,16 +10,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 
-//usage:#define crontab_trivial_usage
-//usage:       "[-c DIR] [-u USER] [-ler]|[FILE]"
-//usage:#define crontab_full_usage "\n\n"
-//usage:       "	-c	Crontab directory"
-//usage:     "\n	-u	User"
-//usage:     "\n	-l	List crontab"
-//usage:     "\n	-e	Edit crontab"
-//usage:     "\n	-r	Delete crontab"
-//usage:     "\n	FILE	Replace crontab by FILE ('-': stdin)"
-
 #include "libbb.h"
 
 #define CRONTABS        CONFIG_FEATURE_CROND_DIR "/crontabs"
@@ -30,9 +20,8 @@
 static void edit_file(const struct passwd *pas, const char *file)
 {
 	const char *ptr;
-	pid_t pid;
+	int pid = xvfork();
 
-	pid = xvfork();
 	if (pid) { /* parent */
 		wait4pid(pid);
 		return;
@@ -41,7 +30,7 @@ static void edit_file(const struct passwd *pas, const char *file)
 	/* CHILD - change user and run editor */
 	/* initgroups, setgid, setuid */
 	change_identity(pas);
-	setup_environment(pas->pw_shell,
+	setup_environment(DEFAULT_SHELL,
 			SETUP_ENV_CHANGEENV | SETUP_ENV_TO_TMP,
 			pas);
 	ptr = getenv("VISUAL");
@@ -52,7 +41,7 @@ static void edit_file(const struct passwd *pas, const char *file)
 	}
 
 	BB_EXECLP(ptr, ptr, file, NULL);
-	bb_perror_msg_and_die("can't execute '%s'", ptr);
+	bb_perror_msg_and_die("exec %s", ptr);
 }
 
 static int open_as_user(const struct passwd *pas, const char *file)

@@ -37,10 +37,18 @@ enum {
 #define ENC_WEP    0
 #define ENC_WPA    1
 #define ENC_WPA2   2
+#define ENC_OFF    3
+
+#define CIPHER_NONE    0
+#define CIPHER_WEP     1
+#define CIPHER_TKIP    2
+#define CIPHER_CCMP    3
 //---------------------------------------
 typedef struct
 {
     int ap_mode;    /* 1: manage 2: Ad-hoc */
+    int enc_group;   /* wep:0 wpa:1 wpa2:2 */
+    int enc_pair;   /* wep:0 wpa:1 wpa2:2 */
     int enc_type;   /* wep:0 wpa:1 wpa2:2 */
 	int enc_key;
     char ssid[128];

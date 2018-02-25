@@ -15,22 +15,21 @@
  * -D define wrap #ifdef and #ifndef around changes
  * -o outfile output here instead of in place
  * -r rejectfile write rejected hunks to this file
- * --dry-run (regression!)
  *
  * -f force (no questions asked)
  * -F fuzz (number, default 2)
  * [file] which file to patch
  */
 
+//applet:IF_PATCH(APPLET(patch, _BB_DIR_USR_BIN, _BB_SUID_DROP))
+
+//kbuild:lib-$(CONFIG_PATCH) += patch.o
+
 //config:config PATCH
 //config:	bool "patch"
 //config:	default y
 //config:	help
 //config:	  Apply a unified diff formatted patch.
-
-//applet:IF_PATCH(APPLET(patch, BB_DIR_USR_BIN, BB_SUID_DROP))
-
-//kbuild:lib-$(CONFIG_PATCH) += patch.o
 
 //usage:#define patch_trivial_usage
 //usage:       "[OPTIONS] [ORIGFILE [PATCHFILE]]"
@@ -40,7 +39,7 @@
 //usage:     "\n	-i,--input DIFF		Read DIFF instead of stdin"
 //usage:     "\n	-R,--reverse		Reverse patch"
 //usage:     "\n	-N,--forward		Ignore already applied patches"
-/*usage:     "\n	--dry-run		Don't actually change files" - TODO */
+//usage:     "\n	--dry-run		Don't actually change files"
 //usage:     "\n	-E,--remove-empty-files	Remove output files if they become empty"
 //usage:	)
 //usage:	IF_NOT_LONG_OPTS(
@@ -50,8 +49,6 @@
 //usage:     "\n	-N	Ignore already applied patches"
 //usage:     "\n	-E	Remove output files if they become empty"
 //usage:	)
-/* -u "interpret as unified diff" is supported but not documented: this info is not useful for --help */
-/* -x "debug" is supported but does nothing */
 //usage:
 //usage:#define patch_example_usage
 //usage:       "$ patch -p1 < example.diff\n"
@@ -70,7 +67,8 @@ struct double_list {
 
 // Free all the elements of a linked list
 // Call freeit() on each element before freeing it.
-static void dlist_free(struct double_list *list, void (*freeit)(void *data))
+static
+void dlist_free(struct double_list *list, void (*freeit)(void *data))
 {
 	while (list) {
 		void *pop = list;
@@ -82,7 +80,8 @@ static void dlist_free(struct double_list *list, void (*freeit)(void *data))
 }
 
 // Add an entry before "list" element in (circular) doubly linked list
-static struct double_list *dlist_add(struct double_list **list, char *data)
+static
+struct double_list *dlist_add(struct double_list **list, char *data)
 {
 	struct double_list *llist;
 	struct double_list *line = xmalloc(sizeof(*line));
@@ -131,8 +130,8 @@ struct globals {
 #define FLAG_INPUT   (1 << 3)
 #define FLAG_IGNORE  (1 << 4)
 #define FLAG_RMEMPTY (1 << 5)
-/* Enable this bit and use -x for debug output: */
-#define FLAG_DEBUG   (0 << 6)
+//non-standard:
+#define FLAG_DEBUG   (1 << 6)
 
 // Dispose of a line of input, either by writing it out or discarding it.
 
@@ -230,7 +229,7 @@ static int apply_one_hunk(void)
 		else matcheof = 0;
 		if (PATCH_DEBUG) fdprintf(2, "HUNK:%s\n", plist->data);
 	}
-	matcheof = !matcheof || matcheof < TT.context;
+	matcheof = matcheof < TT.context;
 
 	if (PATCH_DEBUG) fdprintf(2,"MATCHEOF=%c\n", matcheof ? 'Y' : 'N');
 
@@ -239,8 +238,8 @@ static int apply_one_hunk(void)
 	// complete hunk.
 	plist = TT.current_hunk;
 	buf = NULL;
-	if (reverse ? TT.oldlen : TT.newlen) for (;;) {
-		char *data = xmalloc_reads(TT.filein, NULL);
+	if (TT.context) for (;;) {
+		char *data = xmalloc_reads(TT.filein, NULL, NULL);
 
 		TT.linenum++;
 
@@ -353,8 +352,6 @@ int patch_main(int argc UNUSED_PARAM, char **argv)
 	int reverse, state = 0;
 	char *oldname = NULL, *newname = NULL;
 	char *opt_p, *opt_i;
-	long oldlen = oldlen; /* for compiler */
-	long newlen = newlen; /* for compiler */
 
 	INIT_TT();
 
@@ -394,8 +391,8 @@ int patch_main(int argc UNUSED_PARAM, char **argv)
 			if (*patchline==' ' || *patchline=='+' || *patchline=='-') {
 				dlist_add(&TT.current_hunk, patchline);
 
-				if (*patchline != '+') oldlen--;
-				if (*patchline != '-') newlen--;
+				if (*patchline != '+') TT.oldlen--;
+				if (*patchline != '-') TT.newlen--;
 
 				// Context line?
 				if (*patchline==' ' && state==2) TT.context++;
@@ -403,7 +400,7 @@ int patch_main(int argc UNUSED_PARAM, char **argv)
 
 				// If we've consumed all expected hunk lines, apply the hunk.
 
-				if (!oldlen && !newlen) state = apply_one_hunk();
+				if (!TT.oldlen && !TT.newlen) state = apply_one_hunk();
 				continue;
 			}
 			fail_hunk();
@@ -450,14 +447,11 @@ int patch_main(int argc UNUSED_PARAM, char **argv)
 
 			// Read oldline[,oldlen] +newline[,newlen]
 
-			TT.oldlen = oldlen = TT.newlen = newlen = 1;
+			TT.oldlen = TT.newlen = 1;
 			TT.oldline = strtol(s, &s, 10);
-			if (*s == ',') TT.oldlen = oldlen = strtol(s+1, &s, 10);
+			if (*s == ',') TT.oldlen=strtol(s+1, &s, 10);
 			TT.newline = strtol(s+2, &s, 10);
-			if (*s == ',') TT.newlen = newlen = strtol(s+1, &s, 10);
-
-			if (oldlen < 1 && newlen < 1)
-				bb_error_msg_and_die("Really? %s", patchline);
+			if (*s == ',') TT.newlen = strtol(s+1, &s, 10);
 
 			TT.context = 0;
 			state = 2;
@@ -467,28 +461,26 @@ int patch_main(int argc UNUSED_PARAM, char **argv)
 				int oldsum, newsum, empty = 0;
 				char *name;
 
-				oldsum = TT.oldline + oldlen;
-				newsum = TT.newline + newlen;
+				oldsum = TT.oldline + TT.oldlen;
+				newsum = TT.newline + TT.newlen;
 
 				name = reverse ? oldname : newname;
 
 				// We're deleting oldname if new file is /dev/null (before -p)
 				// or if new hunk is empty (zero context) after patching
-				if (!strcmp(name, "/dev/null") || !(reverse ? oldsum : newsum)) {
+				if (!strcmp(name, "/dev/null") || !(reverse ? oldsum : newsum))
+				{
 					name = reverse ? newname : oldname;
 					empty++;
 				}
 
 				// handle -p path truncation.
-				for (i = 0, s = name; *s;) {
-					if ((option_mask32 & FLAG_PATHLEN) && TT.prefix == i)
-						break;
-					if (*s++ != '/')
-						continue;
-					while (*s == '/')
-						s++;
-					i++;
-					name = s;
+				for (i=0, s = name; *s;) {
+					if ((option_mask32 & FLAG_PATHLEN) && TT.prefix == i) break;
+					if (*(s++)=='/') {
+						name = s;
+						i++;
+					}
 				}
 
 				if (empty) {

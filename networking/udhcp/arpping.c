@@ -118,13 +118,8 @@ int FAST_FUNC arpping(uint32_t test_nip,
 				break;
 			}
 		}
-		timeout_ms -= (unsigned)monotonic_ms() - prevTime + 1;
-
-		/* We used to check "timeout_ms > 0", but
-		 * this is more under/overflow-resistant
-		 * (people did see overflows here when system time jumps):
-		 */
-	} while ((unsigned)timeout_ms <= 2000);
+		timeout_ms -= (unsigned)monotonic_ms() - prevTime;
+	} while (timeout_ms > 0);
 
  ret:
 	close(s);

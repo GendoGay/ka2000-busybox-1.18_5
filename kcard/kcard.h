@@ -36,4 +36,6 @@ typedef enum{
 //extern char sender_control_file[];
 //void IO_control(driver_contl_type type, short* res_val);
 
+#define TS_GPLUS   1 
+#define TS_RESET   1
 #endif

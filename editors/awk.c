@@ -7,13 +7,6 @@
  * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 
-//usage:#define awk_trivial_usage
-//usage:       "[OPTIONS] [AWK_PROGRAM] [FILE]..."
-//usage:#define awk_full_usage "\n\n"
-//usage:       "	-v VAR=VAL	Set variable"
-//usage:     "\n	-F SEP		Use SEP as field separator"
-//usage:     "\n	-f FILE		Read program from FILE"
-
 #include "libbb.h"
 #include "xregex.h"
 #include <math.h>
@@ -25,16 +18,12 @@
  * to perform debug printfs to stderr: */
 #define debug_printf_walker(...)  do {} while (0)
 #define debug_printf_eval(...)  do {} while (0)
-#define debug_printf_parse(...)  do {} while (0)
 
 #ifndef debug_printf_walker
 # define debug_printf_walker(...) (fprintf(stderr, __VA_ARGS__))
 #endif
 #ifndef debug_printf_eval
 # define debug_printf_eval(...) (fprintf(stderr, __VA_ARGS__))
-#endif
-#ifndef debug_printf_parse
-# define debug_printf_parse(...) (fprintf(stderr, __VA_ARGS__))
 #endif
 
 
@@ -242,9 +231,6 @@ typedef struct tsplitter_s {
  * For builtins it has different meaning: n n s3 s2 s1 v3 v2 v1,
  * n - min. number of args, vN - resolve Nth arg to var, sN - resolve to string
  */
-#undef P
-#undef PRIMASK
-#undef PRIMASK2
 #define P(x)      (x << 24)
 #define PRIMASK   0x7F000000
 #define PRIMASK2  0x7E000000
@@ -439,13 +425,13 @@ struct globals {
 	smallint nextrec;
 	smallint nextfile;
 	smallint is_f0_split;
-	smallint t_rollback;
 };
 struct globals2 {
 	uint32_t t_info; /* often used */
 	uint32_t t_tclass;
 	char *t_string;
 	int t_lineno;
+	int t_rollback;
 
 	var *intvar[NUM_INTERNAL_VARS]; /* often used */
 
@@ -503,11 +489,11 @@ struct globals2 {
 #define nextrec      (G1.nextrec     )
 #define nextfile     (G1.nextfile    )
 #define is_f0_split  (G1.is_f0_split )
-#define t_rollback   (G1.t_rollback  )
 #define t_info       (G.t_info      )
 #define t_tclass     (G.t_tclass    )
 #define t_string     (G.t_string    )
 #define t_lineno     (G.t_lineno    )
+#define t_rollback   (G.t_rollback  )
 #define intvar       (G.intvar      )
 #define fsplitter    (G.fsplitter   )
 #define rsplitter    (G.rsplitter   )
@@ -1015,7 +1001,6 @@ static uint32_t next_token(uint32_t expected)
 
 		if (*p == '\0') {
 			tc = TC_EOF;
-			debug_printf_parse("%s: token found: TC_EOF\n", __func__);
 
 		} else if (*p == '\"') {
 			/* it's a string */
@@ -1031,7 +1016,6 @@ static uint32_t next_token(uint32_t expected)
 			p++;
 			*s = '\0';
 			tc = TC_STRING;
-			debug_printf_parse("%s: token found:'%s' TC_STRING\n", __func__, t_string);
 
 		} else if ((expected & TC_REGEXP) && *p == '/') {
 			/* it's regexp */
@@ -1054,7 +1038,6 @@ static uint32_t next_token(uint32_t expected)
 			p++;
 			*s = '\0';
 			tc = TC_REGEXP;
-			debug_printf_parse("%s: token found:'%s' TC_REGEXP\n", __func__, t_string);
 
 		} else if (*p == '.' || isdigit(*p)) {
 			/* it's a number */
@@ -1064,7 +1047,6 @@ static uint32_t next_token(uint32_t expected)
 			if (*p == '.')
 				syntax_error(EMSG_UNEXP_TOKEN);
 			tc = TC_NUMBER;
-			debug_printf_parse("%s: token found:%f TC_NUMBER\n", __func__, t_double);
 
 		} else {
 			/* search for something known */
@@ -1087,7 +1069,6 @@ static uint32_t next_token(uint32_t expected)
 				) {
 					/* then this is what we are looking for */
 					t_info = *ti;
-					debug_printf_parse("%s: token found:'%.*s' t_info:%x\n", __func__, l, p, t_info);
 					p += l;
 					goto token_found;
 				}
@@ -1111,17 +1092,14 @@ static uint32_t next_token(uint32_t expected)
 				p = skip_spaces(p);
 			if (*p == '(') {
 				tc = TC_FUNCTION;
-				debug_printf_parse("%s: token found:'%s' TC_FUNCTION\n", __func__, t_string);
 			} else {
 				if (*p == '[') {
 					p++;
 					tc = TC_ARRAY;
-					debug_printf_parse("%s: token found:'%s' TC_ARRAY\n", __func__, t_string);
-				} else
-					debug_printf_parse("%s: token found:'%s' TC_VARIABLE\n", __func__, t_string);
+				}
 			}
+ token_found: ;
 		}
- token_found:
 		g_pos = p;
 
 		/* skipping newlines in some cases */
@@ -1193,8 +1171,6 @@ static node *parse_expr(uint32_t iexp)
 	uint32_t tc, xtc;
 	var *v;
 
-	debug_printf_parse("%s(%x)\n", __func__, iexp);
-
 	sn.info = PRIMASK;
 	sn.r.n = glptr = NULL;
 	xtc = TC_OPERAND | TC_UOPPRE | TC_REGEXP | iexp;
@@ -1203,14 +1179,12 @@ static node *parse_expr(uint32_t iexp)
 
 		if (glptr && (t_info == (OC_COMPARE | VV | P(39) | 2))) {
 			/* input redirection (<) attached to glptr node */
-			debug_printf_parse("%s: input redir\n", __func__);
 			cn = glptr->l.n = new_node(OC_CONCAT | SS | P(37));
 			cn->a.n = glptr;
 			xtc = TC_OPERAND | TC_UOPPRE;
 			glptr = NULL;
 
 		} else if (tc & (TC_BINOP | TC_UOPPOST)) {
-			debug_printf_parse("%s: TC_BINOP | TC_UOPPOST\n", __func__);
 			/* for binary and postfix-unary operators, jump back over
 			 * previous operators with higher priority */
 			vn = cn;
@@ -1240,7 +1214,6 @@ static node *parse_expr(uint32_t iexp)
 			vn->a.n = cn;
 
 		} else {
-			debug_printf_parse("%s: other\n", __func__);
 			/* for operands and prefix-unary operators, attach them
 			 * to last node */
 			vn = cn;
@@ -1248,14 +1221,12 @@ static node *parse_expr(uint32_t iexp)
 			cn->a.n = vn;
 			xtc = TC_OPERAND | TC_UOPPRE | TC_REGEXP;
 			if (tc & (TC_OPERAND | TC_REGEXP)) {
-				debug_printf_parse("%s: TC_OPERAND | TC_REGEXP\n", __func__);
 				xtc = TC_UOPPRE | TC_UOPPOST | TC_BINOP | TC_OPERAND | iexp;
 				/* one should be very careful with switch on tclass -
 				 * only simple tclasses should be used! */
 				switch (tc) {
 				case TC_VARIABLE:
 				case TC_ARRAY:
-					debug_printf_parse("%s: TC_VARIABLE | TC_ARRAY\n", __func__);
 					cn->info = OC_VAR;
 					v = hash_search(ahash, t_string);
 					if (v != NULL) {
@@ -1272,7 +1243,6 @@ static node *parse_expr(uint32_t iexp)
 
 				case TC_NUMBER:
 				case TC_STRING:
-					debug_printf_parse("%s: TC_NUMBER | TC_STRING\n", __func__);
 					cn->info = OC_VAR;
 					v = cn->l.v = xzalloc(sizeof(var));
 					if (tc & TC_NUMBER)
@@ -1282,41 +1252,32 @@ static node *parse_expr(uint32_t iexp)
 					break;
 
 				case TC_REGEXP:
-					debug_printf_parse("%s: TC_REGEXP\n", __func__);
 					mk_re_node(t_string, cn, xzalloc(sizeof(regex_t)*2));
 					break;
 
 				case TC_FUNCTION:
-					debug_printf_parse("%s: TC_FUNCTION\n", __func__);
 					cn->info = OC_FUNC;
 					cn->r.f = newfunc(t_string);
 					cn->l.n = condition();
 					break;
 
 				case TC_SEQSTART:
-					debug_printf_parse("%s: TC_SEQSTART\n", __func__);
 					cn = vn->r.n = parse_expr(TC_SEQTERM);
-					if (!cn)
-						syntax_error("Empty sequence");
 					cn->a.n = vn;
 					break;
 
 				case TC_GETLINE:
-					debug_printf_parse("%s: TC_GETLINE\n", __func__);
 					glptr = cn;
 					xtc = TC_OPERAND | TC_UOPPRE | TC_BINOP | iexp;
 					break;
 
 				case TC_BUILTIN:
-					debug_printf_parse("%s: TC_BUILTIN\n", __func__);
 					cn->l.n = condition();
 					break;
 				}
 			}
 		}
 	}
-
-	debug_printf_parse("%s() returns %p\n", __func__, sn.r.n);
 	return sn.r.n;
 }
 
@@ -1385,25 +1346,18 @@ static void chain_group(void)
 	} while (c & TC_NEWLINE);
 
 	if (c & TC_GRPSTART) {
-		debug_printf_parse("%s: TC_GRPSTART\n", __func__);
 		while (next_token(TC_GRPSEQ | TC_GRPTERM) != TC_GRPTERM) {
-			debug_printf_parse("%s: !TC_GRPTERM\n", __func__);
 			if (t_tclass & TC_NEWLINE)
 				continue;
 			rollback_token();
 			chain_group();
 		}
-		debug_printf_parse("%s: TC_GRPTERM\n", __func__);
 	} else if (c & (TC_OPSEQ | TC_OPTERM)) {
-		debug_printf_parse("%s: TC_OPSEQ | TC_OPTERM\n", __func__);
 		rollback_token();
 		chain_expr(OC_EXEC | Vx);
-	} else {
-		/* TC_STATEMNT */
-		debug_printf_parse("%s: TC_STATEMNT(?)\n", __func__);
+	} else {						/* TC_STATEMNT */
 		switch (t_info & OPCLSMASK) {
 		case ST_IF:
-			debug_printf_parse("%s: ST_IF\n", __func__);
 			n = chain_node(OC_BR | Vx);
 			n->l.n = condition();
 			chain_group();
@@ -1418,14 +1372,12 @@ static void chain_group(void)
 			break;
 
 		case ST_WHILE:
-			debug_printf_parse("%s: ST_WHILE\n", __func__);
 			n2 = condition();
 			n = chain_loop(NULL);
 			n->l.n = n2;
 			break;
 
 		case ST_DO:
-			debug_printf_parse("%s: ST_DO\n", __func__);
 			n2 = chain_node(OC_EXEC);
 			n = chain_loop(NULL);
 			n2->a.n = n->a.n;
@@ -1434,7 +1386,6 @@ static void chain_group(void)
 			break;
 
 		case ST_FOR:
-			debug_printf_parse("%s: ST_FOR\n", __func__);
 			next_token(TC_SEQSTART);
 			n2 = parse_expr(TC_SEMICOL | TC_SEQTERM);
 			if (t_tclass & TC_SEQTERM) {	/* for-in */
@@ -1460,7 +1411,6 @@ static void chain_group(void)
 
 		case OC_PRINT:
 		case OC_PRINTF:
-			debug_printf_parse("%s: OC_PRINT[F]\n", __func__);
 			n = chain_node(t_info);
 			n->l.n = parse_expr(TC_OPTERM | TC_OUTRDR | TC_GRPTERM);
 			if (t_tclass & TC_OUTRDR) {
@@ -1472,20 +1422,17 @@ static void chain_group(void)
 			break;
 
 		case OC_BREAK:
-			debug_printf_parse("%s: OC_BREAK\n", __func__);
 			n = chain_node(OC_EXEC);
 			n->a.n = break_ptr;
 			break;
 
 		case OC_CONTINUE:
-			debug_printf_parse("%s: OC_CONTINUE\n", __func__);
 			n = chain_node(OC_EXEC);
 			n->a.n = continue_ptr;
 			break;
 
 		/* delete, next, nextfile, return, exit */
 		default:
-			debug_printf_parse("%s: default\n", __func__);
 			chain_expr(t_info);
 		}
 	}
@@ -1503,24 +1450,19 @@ static void parse_program(char *p)
 	while ((tclass = next_token(TC_EOF | TC_OPSEQ | TC_GRPSTART |
 			TC_OPTERM | TC_BEGIN | TC_END | TC_FUNCDECL)) != TC_EOF) {
 
-		if (tclass & TC_OPTERM) {
-			debug_printf_parse("%s: TC_OPTERM\n", __func__);
+		if (tclass & TC_OPTERM)
 			continue;
-		}
 
 		seq = &mainseq;
 		if (tclass & TC_BEGIN) {
-			debug_printf_parse("%s: TC_BEGIN\n", __func__);
 			seq = &beginseq;
 			chain_group();
 
 		} else if (tclass & TC_END) {
-			debug_printf_parse("%s: TC_END\n", __func__);
 			seq = &endseq;
 			chain_group();
 
 		} else if (tclass & TC_FUNCDECL) {
-			debug_printf_parse("%s: TC_FUNCDECL\n", __func__);
 			next_token(TC_FUNCTION);
 			g_pos++;
 			f = newfunc(t_string);
@@ -1538,27 +1480,22 @@ static void parse_program(char *p)
 			clear_array(ahash);
 
 		} else if (tclass & TC_OPSEQ) {
-			debug_printf_parse("%s: TC_OPSEQ\n", __func__);
 			rollback_token();
 			cn = chain_node(OC_TEST);
 			cn->l.n = parse_expr(TC_OPTERM | TC_EOF | TC_GRPSTART);
 			if (t_tclass & TC_GRPSTART) {
-				debug_printf_parse("%s: TC_GRPSTART\n", __func__);
 				rollback_token();
 				chain_group();
 			} else {
-				debug_printf_parse("%s: !TC_GRPSTART\n", __func__);
 				chain_node(OC_PRINT);
 			}
 			cn->r.n = mainseq.last;
 
 		} else /* if (tclass & TC_GRPSTART) */ {
-			debug_printf_parse("%s: TC_GRPSTART(?)\n", __func__);
 			rollback_token();
 			chain_group();
 		}
 	}
-	debug_printf_parse("%s: TC_EOF\n", __func__);
 }
 
 
@@ -2683,7 +2620,7 @@ static var *evaluate(node *op, var *res)
 				rsm = iF;
 			}
 
-			if (!rsm || !rsm->F) {
+			if (!rsm->F) {
 				setvar_i(intvar[ERRNO], errno);
 				setvar_i(res, -1);
 				break;
@@ -3017,7 +2954,7 @@ static rstream *next_input_file(void)
 #define rsm          (G.next_input_file__rsm)
 #define files_happen (G.next_input_file__files_happen)
 
-	FILE *F;
+	FILE *F = NULL;
 	const char *fname, *ind;
 
 	if (rsm.F)
@@ -3025,21 +2962,19 @@ static rstream *next_input_file(void)
 	rsm.F = NULL;
 	rsm.pos = rsm.adv = 0;
 
-	for (;;) {
+	do {
 		if (getvar_i(intvar[ARGIND])+1 >= getvar_i(intvar[ARGC])) {
 			if (files_happen)
 				return NULL;
 			fname = "-";
 			F = stdin;
-			break;
+		} else {
+			ind = getvar_s(incvar(intvar[ARGIND]));
+			fname = getvar_s(findvar(iamarray(intvar[ARGV]), ind));
+			if (fname && *fname && !is_assignment(fname))
+				F = xfopen_stdin(fname);
 		}
-		ind = getvar_s(incvar(intvar[ARGIND]));
-		fname = getvar_s(findvar(iamarray(intvar[ARGV]), ind));
-		if (fname && *fname && !is_assignment(fname)) {
-			F = xfopen_stdin(fname);
-			break;
-		}
-	}
+	} while (!F);
 
 	files_happen = TRUE;
 	setvar_s(intvar[FILENAME], fname);
@@ -3053,7 +2988,7 @@ int awk_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int awk_main(int argc, char **argv)
 {
 	unsigned opt;
-	char *opt_F;
+	char *opt_F, *opt_W;
 	llist_t *list_v = NULL;
 	llist_t *list_f = NULL;
 	int i, j;
@@ -3115,7 +3050,7 @@ int awk_main(int argc, char **argv)
 		}
 	}
 	opt_complementary = "v::f::"; /* -v and -f can occur multiple times */
-	opt = getopt32(argv, "F:v:f:W:", &opt_F, &list_v, &list_f, NULL);
+	opt = getopt32(argv, "F:v:f:W:", &opt_F, &list_v, &list_f, &opt_W);
 	argv += optind;
 	argc -= optind;
 	if (opt & 0x1)
@@ -3149,7 +3084,7 @@ int awk_main(int argc, char **argv)
 		parse_program(*argv++);
 	}
 	if (opt & 0x8) // -W
-		bb_error_msg("warning: option -W is ignored");
+		bb_error_msg("warning: unrecognized option '-W %s' ignored", opt_W);
 
 	/* fill in ARGV array */
 	setvar_i(intvar[ARGC], argc);

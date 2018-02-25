@@ -25,25 +25,19 @@
 #include "libbb.h"
 
 /* Turn on nonblocking I/O on a fd */
-void FAST_FUNC ndelay_on(int fd)
+int FAST_FUNC ndelay_on(int fd)
 {
-	int flags = fcntl(fd, F_GETFL);
-	if (flags & O_NONBLOCK)
-		return;
-	fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+	return fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
 }
 
-void FAST_FUNC ndelay_off(int fd)
+int FAST_FUNC ndelay_off(int fd)
 {
-	int flags = fcntl(fd, F_GETFL);
-	if (!(flags & O_NONBLOCK))
-		return;
-	fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+	return fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) & ~O_NONBLOCK);
 }
 
-void FAST_FUNC close_on_exec_on(int fd)
+int FAST_FUNC close_on_exec_on(int fd)
 {
-	fcntl(fd, F_SETFD, FD_CLOEXEC);
+	return fcntl(fd, F_SETFD, FD_CLOEXEC);
 }
 
 char* FAST_FUNC strncpy_IFNAMSIZ(char *dst, const char *src)
@@ -240,7 +234,7 @@ static int wh_helper(int value, int def_val, const char *env_name, int *err)
 		char *s = getenv(env_name);
 		if (s) {
 			value = atoi(s);
-			/* If LINES/COLUMNS are set, pretend that there is
+			/* If LINES/COLUMNS are set, pretent that there is
 			 * no error getting w/h, this prevents some ugly
 			 * cursor tricks by our callers */
 			*err = 0;

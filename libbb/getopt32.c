@@ -7,9 +7,7 @@
  * Licensed under GPLv2 or later, see file LICENSE in this source tree.
  */
 
-#if ENABLE_LONG_OPTS || ENABLE_FEATURE_GETOPT_LONG
-# include <getopt.h>
-#endif
+#include <getopt.h>
 #include "libbb.h"
 
 /*      Documentation
@@ -82,9 +80,9 @@ const char *applet_long_options
         This struct allows you to define long options:
 
         static const char applet_longopts[] ALIGN1 =
-                //"name\0" has_arg val
-                "verbose\0" No_argument "v"
-                ;
+		//"name\0" has_arg val
+		"verbose\0" No_argument "v"
+		;
         applet_long_options = applet_longopts;
 
         The last member of struct option (val) typically is set to
@@ -228,7 +226,7 @@ Special characters:
         if specified together.  In this case you must set
         opt_complementary = "b--cf:c--bf:f--bc".  If two of the
         mutually exclusive options are found, getopt32 will call
-        bb_show_usage() and die.
+	bb_show_usage() and die.
 
  "x--x" Variation of the above, it means that -x option should occur
         at most once.
@@ -467,17 +465,13 @@ getopt32(char **argv, const char *applet_opts, ...)
 		}
 		for (on_off = complementary; on_off->opt_char; on_off++)
 			if (on_off->opt_char == *s)
-				goto found_opt;
-		/* Without this, diagnostic of such bugs is not easy */
-		bb_error_msg_and_die("NO OPT %c!", *s);
- found_opt:
+				break;
 		if (c == ':' && s[2] == ':') {
 			on_off->param_type = PARAM_LIST;
 			continue;
 		}
 		if (c == '+' && (s[2] == ':' || s[2] == '\0')) {
 			on_off->param_type = PARAM_INT;
-			s++;
 			continue;
 		}
 		if (c == ':' || c == '\0') {
@@ -537,7 +531,7 @@ getopt32(char **argv, const char *applet_opts, ...)
 
 	/* In case getopt32 was already called:
 	 * reset the libc getopt() function, which keeps internal state.
-	 * run_nofork_applet() does this, but we might end up here
+	 * run_nofork_applet_prime() does this, but we might end up here
 	 * also via gunzip_main() -> gzip_main(). Play safe.
 	 */
 #ifdef __GLIBC__
@@ -547,6 +541,8 @@ getopt32(char **argv, const char *applet_opts, ...)
 	/* optreset = 1; */
 #endif
 	/* optarg = NULL; opterr = 0; optopt = 0; - do we need this?? */
+
+	pargv = NULL;
 
 	/* Note: just "getopt() <= 0" will not work well for
 	 * "fake" short options, like this one:
@@ -578,16 +574,19 @@ getopt32(char **argv, const char *applet_opts, ...)
 		flags ^= trigger;
 		if (on_off->counter)
 			(*(on_off->counter))++;
-		if (optarg) {
-			if (on_off->param_type == PARAM_LIST) {
+		if (on_off->param_type == PARAM_LIST) {
+			if (optarg)
 				llist_add_to_end((llist_t **)(on_off->optarg), optarg);
-			} else if (on_off->param_type == PARAM_INT) {
+		} else if (on_off->param_type == PARAM_INT) {
+			if (optarg)
 //TODO: xatoi_positive indirectly pulls in printf machinery
 				*(unsigned*)(on_off->optarg) = xatoi_positive(optarg);
-			} else if (on_off->optarg) {
+		} else if (on_off->optarg) {
+			if (optarg)
 				*(char **)(on_off->optarg) = optarg;
-			}
 		}
+		if (pargv != NULL)
+			break;
 	}
 
 	/* check depending requires for given options */

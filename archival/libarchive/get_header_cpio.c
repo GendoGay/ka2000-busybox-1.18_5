@@ -5,7 +5,7 @@
  */
 
 #include "libbb.h"
-#include "bb_archive.h"
+#include "archive.h"
 
 typedef struct hardlinks_t {
 	struct hardlinks_t *next;

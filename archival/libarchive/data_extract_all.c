@@ -4,7 +4,7 @@
  */
 
 #include "libbb.h"
-#include "bb_archive.h"
+#include "archive.h"
 
 void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 {
@@ -13,13 +13,13 @@ void FAST_FUNC data_extract_all(archive_handle_t *archive_handle)
 	int res;
 
 #if ENABLE_FEATURE_TAR_SELINUX
-	char *sctx = archive_handle->tar__sctx[PAX_NEXT_FILE];
+	char *sctx = archive_handle->tar__next_file_sctx;
 	if (!sctx)
-		sctx = archive_handle->tar__sctx[PAX_GLOBAL];
+		sctx = archive_handle->tar__global_sctx;
 	if (sctx) { /* setfscreatecon is 4 syscalls, avoid if possible */
 		setfscreatecon(sctx);
-		free(archive_handle->tar__sctx[PAX_NEXT_FILE]);
-		archive_handle->tar__sctx[PAX_NEXT_FILE] = NULL;
+		free(archive_handle->tar__next_file_sctx);
+		archive_handle->tar__next_file_sctx = NULL;
 	}
 #endif
 

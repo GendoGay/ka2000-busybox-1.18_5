@@ -8,14 +8,6 @@
  *
  */
 
-//usage:#define raidautorun_trivial_usage
-//usage:       "DEVICE"
-//usage:#define raidautorun_full_usage "\n\n"
-//usage:       "Tell the kernel to automatically search and start RAID arrays"
-//usage:
-//usage:#define raidautorun_example_usage
-//usage:       "$ raidautorun /dev/md0"
-
 #include "libbb.h"
 
 #include <linux/major.h>

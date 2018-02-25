@@ -1,13 +1,3 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
 #include <sys/ioctl.h>
 #include <stdio.h>
 #include <getopt.h>		/* getopt_long() */
@@ -87,7 +77,7 @@ int check_next_config(int start_pos, const char find[], char value1[])
 
             Get_wificonf_Val(find, line, value);
             strcpy(value1, value);
-            printf("Finding:\"%s\": Got: \"%s\"\n", find, value1);
+            //printf("Finding:\"%s\": Got: \"%s\"\n", find, value1);
             break;
         }
     }
@@ -138,7 +128,8 @@ int wifi_get_config_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 		cmd_fp = fopen(parameter_file, "w");
 		if (cmd_fp != NULL)
 		{
-			fprintf(cmd_fp, temp_buffer);
+			/* Use fwrite for safely store of special character */
+			fwrite(temp_buffer,strlen(temp_buffer),1,cmd_fp);
 			fclose(cmd_fp);
 		}
 	}

@@ -1,13 +1,3 @@
-/*
- * KeyASIC KA2000 series software
- *
- * Copyright (C) 2013 KeyASIC.
- *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
- */
 #include "libbb.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -68,7 +58,7 @@ extern checkStat();
 extern printLogin();
 extern readConfigFile(char find[], char value1[]);
 
-char g_path[1024] = "/mnt/sd/DCIM/101_WIFI/";
+char g_path[1024] = "/mnt/sd/DCIM/198_WIFI/";
 extern int check_and_create_path(char *path);
 
 /* Translate character to lowercase. */
@@ -880,7 +870,7 @@ void AcceptSegment(char **Input,            /* Pointer into the incoming stream.
 
     FileCount = FileCount + 1;
     ByteCount = ByteCount + ContentLength;
-    strcpy(LastFullName, "../sd/DCIM/101_WIFI/");
+    strcpy(LastFullName, "../sd/DCIM/198_WIFI/");
     strcat(LastFullName,UpFileName);
     strcpy(LastFileName,UpFileName);
 
@@ -1099,7 +1089,7 @@ int wifi_upload_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 int wifi_upload_main(int argc UNUSED_PARAM, char **argv UNUSED_PARAM)
 {
 	char dir[1024];
-	char path[1024] = "/mnt/sd/DCIM/101_WIFI/";
+	char path[1024] = "/mnt/sd/DCIM/198_WIFI/";
 	char cmd[4096];
     if (argc > 1)
     {

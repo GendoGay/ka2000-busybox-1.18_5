@@ -7,9 +7,6 @@
  * The "ed" built-in command (much simplified)
  */
 
-//usage:#define ed_trivial_usage ""
-//usage:#define ed_full_usage ""
-
 #include "libbb.h"
 
 typedef struct LINE {
@@ -132,7 +129,7 @@ static void doCommands(void)
 		 * 0  on ctrl-C,
 		 * >0 length of input string, including terminating '\n'
 		 */
-		len = read_line_input(NULL, ": ", buf, sizeof(buf), /*timeout*/ -1);
+		len = read_line_input(": ", buf, sizeof(buf), NULL);
 		if (len <= 0)
 			return;
 		endbuf = &buf[len - 1];
@@ -230,7 +227,7 @@ static void doCommands(void)
 			}
 			if (!dirty)
 				return;
-			len = read_line_input(NULL, "Really quit? ", buf, 16, /*timeout*/ -1);
+			len = read_line_input("Really quit? ", buf, 16, NULL);
 			/* read error/EOF - no way to continue */
 			if (len < 0)
 				return;
@@ -454,7 +451,7 @@ static void subCommand(const char *cmd, int num1, int num2)
 
 		/*
 		 * The new string is larger, so allocate a new line
-		 * structure and use that.  Link it in place of
+		 * structure and use that.  Link it in in place of
 		 * the old line structure.
 		 */
 		nlp = xmalloc(sizeof(LINE) + lp->len + deltaLen);
@@ -544,7 +541,7 @@ static void addLines(int num)
 		 * 0  on ctrl-C,
 		 * >0 length of input string, including terminating '\n'
 		 */
-		len = read_line_input(NULL, "", buf, sizeof(buf), /*timeout*/ -1);
+		len = read_line_input("", buf, sizeof(buf), NULL);
 		if (len <= 0) {
 			/* Previously, ctrl-C was exiting to shell.
 			 * Now we exit to ed prompt. Is in important? */

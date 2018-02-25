@@ -8,8 +8,6 @@
  * i18n, 2005, Arnaldo Carvalho de Melo <acme@conectiva.com.br>
  */
 
-#define _XOPEN_SOURCE 700
-
 #include <sys/ioctl.h>
 #include <sys/wait.h>
 #include <ctype.h>
@@ -20,7 +18,6 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <string.h>
-#include <strings.h> /* for strcasecmp */
 #include <termios.h>
 #include <unistd.h>
 #include <locale.h>

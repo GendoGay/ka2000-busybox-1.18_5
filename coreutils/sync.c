@@ -9,11 +9,6 @@
 
 /* BB_AUDIT SUSv3 N/A -- Matches GNU behavior. */
 
-//usage:#define sync_trivial_usage
-//usage:       ""
-//usage:#define sync_full_usage "\n\n"
-//usage:       "Write all buffered blocks to disk"
-
 #include "libbb.h"
 
 /* This is a NOFORK applet. Be very careful! */

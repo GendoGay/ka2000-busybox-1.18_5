@@ -199,7 +199,7 @@ if ($stdout == 0) {
     open(STDOUT, ">$basedir/modules.dep")
                              or die "cannot open $basedir/modules.dep: $!";
 }
-my $kseries = $basedir =~ m,/2\.4\.[^/]*, ? '2.4' : 'others';
+my $kseries = $basedir =~ m,/2\.6\.[^/]*, ? '2.6' : '2.4';
 
 foreach my $module ( keys %$mod ) {
     if($kseries eq '2.4') {

@@ -31,6 +31,73 @@ config  WIFI_FTP_SERVER
 	help
 	  kcard wifi p2p ftp receiver program.
 
+#Kobby-20120116-Add_Begin for support web list
+config TSLIST
+   bool "tslist"
+   default y
+   help
+     TS web list function
+
+config TSCMD
+   bool "tscmd"
+   default y
+   help
+     TS Command Dispatcher.
+
+config INSTANT_SETUPD
+   bool "INSTANT_SETUPD"
+   default y
+   help
+     TS Instant Setup.
+
+config CMD_SERVER
+   bool "CMD_SERVER"
+   default y
+   help
+     TS CMD Server
+
+config TSLIB
+   bool "TSLIB"
+   default y
+   help
+     TS Lib function
+
+config IU_PROGRESSD
+   bool "iu_progressd"
+   default y
+   help
+     instant_upload progess function
+
+
+config INSTANT_UPLOAD 
+   bool "instant_upload"
+   default y
+   help
+     instant_upload function
+
+config INSTANT_UPLOAD_CLEAN
+   bool "instant_upload_clean"
+   default y
+   help
+     instant_upload function
+
+config  WIFI_SET_CONFIG 
+	bool "wifi_set_config"
+	default y
+	help
+	  kcard wifi_set_config program.
+
+config  WIFI_GET_APCONFIG 
+	bool "wifi_get_apconfig"
+	default y
+	help
+	  kcard wifi_get_apconfig program.
+
+
+#Kobby-20120116-Add_End
+
+
+
 config  WIFI_QUICK_SEND
 	bool "wifi_quick_send"
 	default y
@@ -42,6 +109,13 @@ config  WIFI_GET_CONFIG
 	default y
 	help
 	  kcard wifi_get_config program.
+
+config  WIFI_GET_CONFIG_REAL 
+	bool "wifi_get_config_real"
+	default y
+	help
+	  kcard wifi_get_config_real program.
+
 
 config  WIFI_FTP_UPLOAD
 	bool "wifi_ftp_upload"
@@ -90,5 +164,17 @@ config KCARD_CMD
 	default y
 	help
 	  kcard commands : set sleep enable/disable program.		  
+
+config FS_INFO 
+	bool "fs_info"
+	default y
+	help
+	  File system info.
+
+config GEN_FILELIST
+	bool "gen_filelist"
+	default y
+	help
+	  Generate file list.
 
 endmenu
