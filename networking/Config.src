@@ -278,6 +278,13 @@ config FEATURE_HTTPD_GZIP
 	  Makes httpd send files using GZIP content encoding if the
 	  client supports it and a pre-compressed <file>.gz exists.
 
+config FEATURE_HTTPD_INDEX_DIR
+	bool "Support for file list browsing"
+	default y
+	depends on HTTPD
+	help
+	  Makes httpd handle file list.
+	  
 config IFCONFIG
 	bool "ifconfig"
 	default y

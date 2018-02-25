@@ -1,0 +1,26 @@
+#
+# For a description of the syntax of this configuration file,
+# see scripts/kbuild/config-language.txt.
+#
+
+menu "MURATA MAPP Utilities"
+
+INSERT
+
+config MLAN2040COEX 
+	bool "mlan2040coex"
+	default y 
+
+config MLANCONFIG
+        bool "mlanconfig"
+        default y
+
+config MLANEVENT
+        bool "mlanevent"
+        default y
+
+config UAPUTL 
+        bool "uaputl"
+        default y
+
+endmenu

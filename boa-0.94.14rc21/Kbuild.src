@@ -1,0 +1,17 @@
+# DO NOT EDIT. This file is generated from Kbuild.src
+# Makefile for busybox
+#
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
+#
+# Licensed under the GPL v2, see the file LICENSE in this tarball.
+
+lib-y:=
+
+INSERT
+
+lib-$(CONFIG_BOA) += alias.o boa.o buffer.o cgi.o cgi_header.o config.o escape.o \
+			get.o hash.o ip.o log.o mmap_cache.o pipe.o queue.o range.o \
+			read.o request.o response.o signals.o util.o sublog.o \
+			select.o timestamp.o index_dir.o auth.o md5.o
+
+lib-y += get_authfile.o md5.o base64.o

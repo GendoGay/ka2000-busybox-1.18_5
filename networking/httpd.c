@@ -1564,8 +1564,13 @@ static NOINLINE void send_file_and_exit(const char *url, int what)
 			".avi\0"      "video/x-msvideo\0"
 			".qt.mov\0"   "video/quicktime\0"
 			".mpe.mpeg\0" "video/mpeg\0"
+			".mp2.m2v\0"  "video/mpeg\0"
 			".mid.midi\0" "audio/midi\0"
 			".mp3\0"      "audio/mpeg\0"
+			".3gp\0" 	  "video/3gpp\0" 
+			".mp4.m4v\0"  "video/mp4\0" 
+			".wmv\0" 	  "video/x-ms-wmv\0"
+		
 #if 0  /* unpopular */
 			".au\0"       "audio/basic\0"
 			".pac\0"      "application/x-ns-proxy-autoconfig\0"

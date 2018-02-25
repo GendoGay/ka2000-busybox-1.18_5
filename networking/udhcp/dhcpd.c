@@ -580,7 +580,8 @@ o DHCPREQUEST generated during REBINDING state:
 				send_ACK(&packet, lease->lease_nip);
 				break;
 			}
-			if (server_id_opt) {
+			//if (server_id_opt) 
+			{
 				/* client was talking specifically to us.
 				 * "No, we don't have this IP for you". */
 				send_NAK(&packet);

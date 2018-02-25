@@ -106,6 +106,7 @@ struct globals {
 	/* We need these aligned to uint32_t */
 	char msg_ok [(sizeof("NNN " MSG_OK ) + 3) & 0xfffc];
 	char msg_err[(sizeof("NNN " MSG_ERR) + 3) & 0xfffc];
+	
 } FIX_ALIASING;
 #define G (*(struct globals*)&bb_common_bufsiz1)
 #define INIT_G() do { \
@@ -113,6 +114,62 @@ struct globals {
 	/*strcpy(G.msg_ok  + 4, MSG_OK );*/ \
 	/*strcpy(G.msg_err + 4, MSG_ERR);*/ \
 } while (0)
+
+char ftp_root[64] = "/";
+char ftp_cwd[1024]= "/";
+
+int ftp_chroot(void)
+{
+	chdir(ftp_root);
+	return 0;
+}
+
+int ftp_chcwd(void)
+{
+	chdir(ftp_cwd);
+	return 0;
+}                        
+
+int ftp_chdir(const char *str)
+{
+	chdir(str);
+	getcwd(ftp_cwd, 1024);		
+	return 0;
+}
+
+int ftp_xchdir(const char *str)
+{
+	xchdir(str);
+	getcwd(ftp_cwd, 1024);
+	return 0;
+}
+
+char* FAST_FUNC
+ftp_xrealloc_getcwd_or_warn(char *cwd)
+{
+#define PATH_INCR 64
+
+	char *ret;
+	unsigned path_max;
+
+	path_max = 128; /* 128 + 64 should be enough for 99% of cases */
+
+	while (1) {
+		path_max += PATH_INCR;
+		cwd = xrealloc(cwd, path_max);
+		ret = getcwd(cwd, path_max);
+		if (ret == NULL) {
+			if (errno == ERANGE)
+				continue;
+			free(cwd);
+			bb_perror_msg("getcwd");
+			return NULL;
+		}
+		cwd = xrealloc(cwd, strlen(cwd) + 1);
+		return cwd;
+	}
+}
+
 
 
 static char *
@@ -253,7 +310,7 @@ handle_pwd(void)
 {
 	char *cwd, *response;
 
-	cwd = xrealloc_getcwd_or_warn(NULL);
+	cwd = ftp_xrealloc_getcwd_or_warn(NULL);
 	if (cwd == NULL)
 		cwd = xstrdup("");
 
@@ -267,7 +324,7 @@ handle_pwd(void)
 static void
 handle_cwd(void)
 {
-	if (!G.ftp_arg || chdir(G.ftp_arg) != 0) {
+	if (!G.ftp_arg || ftp_chdir(G.ftp_arg) != 0) {
 		WRITE_ERR(FTP_FILEFAIL);
 		return;
 	}
@@ -612,7 +669,7 @@ popen_ls(const char *opt)
 #else
 	/* NOMMU ftpd ls helper chdirs to argv[2],
 	 * preventing peer from seeing real root. */
-	argv[2] = xrealloc_getcwd_or_warn(NULL);
+	argv[2] = ftp_xrealloc_getcwd_or_warn(NULL);
 #endif
 	argv[3] = G.ftp_arg;
 	argv[4] = NULL;
@@ -691,6 +748,7 @@ handle_dir_common(int opts)
 
 	/* -n prevents user/groupname display,
 	 * which can be problematic in chroot */
+	chdir(ftp_cwd);
 	ls_fd = popen_ls((opts & LONG_LISTING) ? "-l" : "-1");
 	ls_fp = xfdopen_for_read(ls_fd);
 
@@ -730,6 +788,7 @@ handle_dir_common(int opts)
 		WRITE_OK(FTP_TRANSFEROK);
 	}
 	fclose(ls_fp); /* closes ls_fd too */
+	chdir(ftp_root);
 }
 static void
 handle_list(void)
@@ -1092,6 +1151,105 @@ enum {
 	OPT_w = (1 << ((!BB_MMU) * 2 + 2)) * ENABLE_FEATURE_FTP_WRITE,
 };
 
+void ftp_handle_cmds(uint32_t cmdval, smallint opts)
+{
+     if (cmdval == const_USER)
+			/* This would mean "ok, now give me PASS". */
+			/*WRITE_OK(FTP_GIVEPWORD);*/
+			/* vsftpd can be configured to not require that,
+			 * and this also saves one roundtrip:
+			 */
+			WRITE_OK(FTP_LOGINOK);
+		else if (cmdval == const_PASS)
+			WRITE_OK(FTP_LOGINOK);
+		else if (cmdval == const_NOOP)
+			WRITE_OK(FTP_NOOPOK);
+		else if (cmdval == const_TYPE)
+			WRITE_OK(FTP_TYPEOK);
+		else if (cmdval == const_STRU)
+			WRITE_OK(FTP_STRUOK);
+		else if (cmdval == const_MODE)
+			WRITE_OK(FTP_MODEOK);
+		else if (cmdval == const_ALLO)
+			WRITE_OK(FTP_ALLOOK);
+		else if (cmdval == const_SYST)
+			cmdio_write_raw(STR(FTP_SYSTOK)" UNIX Type: L8\r\n");
+		else if (cmdval == const_PWD)
+			handle_pwd();
+		else if (cmdval == const_CWD)
+			handle_cwd();
+		else if (cmdval == const_CDUP) /* cd .. */
+			handle_cdup();
+		/* HELP is nearly useless, but we can reuse FEAT for it */
+		/* lftp uses FEAT */
+		else if (cmdval == const_HELP || cmdval == const_FEAT)
+			handle_feat(cmdval == const_HELP
+					? STRNUM32(FTP_HELP)
+					: STRNUM32(FTP_STATOK)
+			);
+		else if (cmdval == const_LIST) /* ls -l */
+			handle_list();
+		else if (cmdval == const_NLST) /* "name list", bare ls */
+			handle_nlst();
+		/* SIZE is crucial for wget's download indicator etc */
+		/* Mozilla, lftp use MDTM (presumably for caching) */
+		else if (cmdval == const_SIZE || cmdval == const_MDTM)
+			handle_size_or_mdtm(cmdval == const_SIZE);
+		else if (cmdval == const_STAT) {
+			if (G.ftp_arg == NULL)
+				handle_stat();
+			else
+				handle_stat_file();
+		}
+		else if (cmdval == const_PASV)
+			handle_pasv();
+		else if (cmdval == const_EPSV)
+			handle_epsv();
+		else if (cmdval == const_RETR)
+			handle_retr();
+		else if (cmdval == const_PORT)
+			handle_port();
+		else if (cmdval == const_REST)
+			handle_rest();
+#if ENABLE_FEATURE_FTP_WRITE
+		else if (opts & OPT_w) {
+			if (cmdval == const_STOR)
+				handle_stor();
+			else if (cmdval == const_MKD)
+				handle_mkd();
+			else if (cmdval == const_RMD)
+				handle_rmd();
+			else if (cmdval == const_DELE)
+				handle_dele();
+			else if (cmdval == const_RNFR) /* "rename from" */
+				handle_rnfr();
+			else if (cmdval == const_RNTO) /* "rename to" */
+				handle_rnto();
+			else if (cmdval == const_APPE)
+				handle_appe();
+			else if (cmdval == const_STOU) /* "store unique" */
+				handle_stou();
+			else
+				goto bad_cmd;
+
+			sync();/* flush write content to SD card */
+		}
+#endif
+
+		else {
+			/* Which unsupported commands were seen in the wild?
+			 * (doesn't necessarily mean "we must support them")
+			 * foo 1.2.3: XXXX - comment
+			 */
+#if ENABLE_FEATURE_FTP_WRITE
+ bad_cmd:
+#endif
+			cmdio_write_raw(STR(FTP_BADCMD)" Unknown command\r\n");
+		}
+    
+}
+
+
 int ftpd_main(int argc, char **argv) MAIN_EXTERNALLY_VISIBLE;
 #if !BB_MMU
 int ftpd_main(int argc, char **argv)
@@ -1118,7 +1276,7 @@ int ftpd_main(int argc UNUSED_PARAM, char **argv)
 /* TODO: pass -n? It prevents user/group resolution, which may not work in chroot anyway */
 /* TODO: pass -A? It shows dot files */
 /* TODO: pass --group-directories-first? would be nice, but ls doesn't do that yet */
-		xchdir(argv[2]);
+		ftp_xchdir(argv[2]);
 		argv[2] = (char*)"--";
 		/* memset(&G, 0, sizeof(G)); - ls_main does it */
 		return ls_main(argc, argv);
@@ -1163,7 +1321,7 @@ int ftpd_main(int argc UNUSED_PARAM, char **argv)
 #endif
 
 	if (argv[optind]) {
-		xchdir(argv[optind]);
+		ftp_xchdir(argv[optind]);
 		chroot(".");
 	}
 
@@ -1255,108 +1413,11 @@ int ftpd_main(int argc UNUSED_PARAM, char **argv)
 			WRITE_OK(FTP_GOODBYE);
 			return 0;
 		}
-		else if (cmdval == const_USER)
-			/* This would mean "ok, now give me PASS". */
-			/*WRITE_OK(FTP_GIVEPWORD);*/
-			/* vsftpd can be configured to not require that,
-			 * and this also saves one roundtrip:
-			 */
-			WRITE_OK(FTP_LOGINOK);
-		else if (cmdval == const_PASS)
-			WRITE_OK(FTP_LOGINOK);
-		else if (cmdval == const_NOOP)
-			WRITE_OK(FTP_NOOPOK);
-		else if (cmdval == const_TYPE)
-			WRITE_OK(FTP_TYPEOK);
-		else if (cmdval == const_STRU)
-			WRITE_OK(FTP_STRUOK);
-		else if (cmdval == const_MODE)
-			WRITE_OK(FTP_MODEOK);
-		else if (cmdval == const_ALLO)
-			WRITE_OK(FTP_ALLOOK);
-		else if (cmdval == const_SYST)
-			cmdio_write_raw(STR(FTP_SYSTOK)" UNIX Type: L8\r\n");
-		else if (cmdval == const_PWD)
-			handle_pwd();
-		else if (cmdval == const_CWD)
-			handle_cwd();
-		else if (cmdval == const_CDUP) /* cd .. */
-			handle_cdup();
-		/* HELP is nearly useless, but we can reuse FEAT for it */
-		/* lftp uses FEAT */
-		else if (cmdval == const_HELP || cmdval == const_FEAT)
-			handle_feat(cmdval == const_HELP
-					? STRNUM32(FTP_HELP)
-					: STRNUM32(FTP_STATOK)
-			);
-		else if (cmdval == const_LIST) /* ls -l */
-			handle_list();
-		else if (cmdval == const_NLST) /* "name list", bare ls */
-			handle_nlst();
-		/* SIZE is crucial for wget's download indicator etc */
-		/* Mozilla, lftp use MDTM (presumably for caching) */
-		else if (cmdval == const_SIZE || cmdval == const_MDTM)
-			handle_size_or_mdtm(cmdval == const_SIZE);
-		else if (cmdval == const_STAT) {
-			if (G.ftp_arg == NULL)
-				handle_stat();
 			else
-				handle_stat_file();
-		}
-		else if (cmdval == const_PASV)
-			handle_pasv();
-		else if (cmdval == const_EPSV)
-			handle_epsv();
-		else if (cmdval == const_RETR)
-			handle_retr();
-		else if (cmdval == const_PORT)
-			handle_port();
-		else if (cmdval == const_REST)
-			handle_rest();
-#if ENABLE_FEATURE_FTP_WRITE
-		else if (opts & OPT_w) {
-			if (cmdval == const_STOR)
-				handle_stor();
-			else if (cmdval == const_MKD)
-				handle_mkd();
-			else if (cmdval == const_RMD)
-				handle_rmd();
-			else if (cmdval == const_DELE)
-				handle_dele();
-			else if (cmdval == const_RNFR) /* "rename from" */
-				handle_rnfr();
-			else if (cmdval == const_RNTO) /* "rename to" */
-				handle_rnto();
-			else if (cmdval == const_APPE)
-				handle_appe();
-			else if (cmdval == const_STOU) /* "store unique" */
-				handle_stou();
-			else
-				goto bad_cmd;
-		}
-#endif
-#if 0
-		else if (cmdval == const_STOR
-		 || cmdval == const_MKD
-		 || cmdval == const_RMD
-		 || cmdval == const_DELE
-		 || cmdval == const_RNFR
-		 || cmdval == const_RNTO
-		 || cmdval == const_APPE
-		 || cmdval == const_STOU
-		) {
-			cmdio_write_raw(STR(FTP_NOPERM)" Permission denied\r\n");
-		}
-#endif
-		else {
-			/* Which unsupported commands were seen in the wild?
-			 * (doesn't necessarily mean "we must support them")
-			 * foo 1.2.3: XXXX - comment
-			 */
-#if ENABLE_FEATURE_FTP_WRITE
- bad_cmd:
-#endif
-			cmdio_write_raw(STR(FTP_BADCMD)" Unknown command\r\n");
+		{
+		    ftp_chcwd();
+            ftp_handle_cmds(cmdval, opts);
+            ftp_chroot();
 		}
 	}
 }

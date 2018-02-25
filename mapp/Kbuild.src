@@ -1,0 +1,13 @@
+# Makefile for busybox
+#
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
+#
+# Licensed under the GPL v2, see the file LICENSE in this tarball.
+
+lib-y:=
+
+INSERT
+lib-$(CONFIG_MLAN2040COEX)	+= mlan2040coex.o mlan2040misc.o
+lib-$(CONFIG_MLANCONFIG)	+= mlanconfig.o mlanhostcmd.o mlanmisc.o
+lib-$(CONFIG_MLANEVENT)	        += mlanevent.o 
+lib-$(CONFIG_UAPUTL)	        += uaputl.o uapcmd.o 
