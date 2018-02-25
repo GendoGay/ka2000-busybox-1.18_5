@@ -8,22 +8,23 @@ enum {
 #if BB_BIG_ENDIAN
 	COMPRESS_MAGIC = 0x1f9d,
 	GZIP_MAGIC  = 0x1f8b,
-	BZIP2_MAGIC = 'B' * 256 + 'Z',
+	BZIP2_MAGIC = 256 * 'B' + 'Z',
 	/* .xz signature: 0xfd, '7', 'z', 'X', 'Z', 0x00 */
 	/* More info at: http://tukaani.org/xz/xz-file-format.txt */
-	XZ_MAGIC1   = 0xfd * 256 + '7',
-	XZ_MAGIC2   = (('z' * 256 + 'X') * 256 + 'Z') * 256 + 0,
+	XZ_MAGIC1   = 256 * 0xfd + '7',
+	XZ_MAGIC2   = 256 * (unsigned)(256 * (256 * 'z' + 'X') + 'Z') + 0,
 	/* Different form: 32 bits, then 16 bits: */
-	XZ_MAGIC1a  = ((0xfd * 256 + '7') * 256 + 'z') * 256 + 'X',
-	XZ_MAGIC2a  = 'Z' * 256 + 0,
+	/* (unsigned) cast suppresses "integer overflow in expression" warning */
+	XZ_MAGIC1a  = 256 * (unsigned)(256 * (256 * 0xfd + '7') + 'z') + 'X',
+	XZ_MAGIC2a  = 256 * 'Z' + 0,
 #else
 	COMPRESS_MAGIC = 0x9d1f,
 	GZIP_MAGIC  = 0x8b1f,
-	BZIP2_MAGIC = 'Z' * 256 + 'B',
-	XZ_MAGIC1   = '7' * 256 + 0xfd,
-	XZ_MAGIC2   = ((0 * 256 + 'Z') * 256 + 'X') * 256 + 'z',
-	XZ_MAGIC1a  = (('X' * 256 + 'z') * 256 + '7') * 256 + 0xfd,
-	XZ_MAGIC2a  = 0 * 256 + 'Z',
+	BZIP2_MAGIC = 'B' + 'Z' * 256,
+	XZ_MAGIC1   = 0xfd + '7' * 256,
+	XZ_MAGIC2   = 'z' + ('X' + ('Z' + 0 * 256) * 256) * 256,
+	XZ_MAGIC1a  = 0xfd + ('7' + ('z' + 'X' * 256) * 256) * 256,
+	XZ_MAGIC2a  = 'Z' + 0 * 256,
 #endif
 };
 
@@ -76,18 +77,20 @@ typedef struct archive_handle_t {
 	off_t offset;
 
 	/* Archiver specific. Can make it a union if it ever gets big */
+#define PAX_NEXT_FILE 0
+#define PAX_GLOBAL    1
 #if ENABLE_TAR || ENABLE_DPKG || ENABLE_DPKG_DEB
 	smallint tar__end;
 # if ENABLE_FEATURE_TAR_GNU_EXTENSIONS
 	char* tar__longname;
 	char* tar__linkname;
 # endif
-#if ENABLE_FEATURE_TAR_TO_COMMAND
+# if ENABLE_FEATURE_TAR_TO_COMMAND
 	char* tar__to_command;
-#endif
+	const char* tar__to_command_shell;
+# endif
 # if ENABLE_FEATURE_TAR_SELINUX
-	char* tar__global_sctx;
-	char* tar__next_file_sctx;
+	char* tar__sctx[2];
 # endif
 #endif
 #if ENABLE_CPIO || ENABLE_RPM2CPIO || ENABLE_RPM
@@ -124,7 +127,7 @@ typedef struct archive_handle_t {
 #define TAR_BLOCK_SIZE 512
 #define NAME_SIZE      100
 #define NAME_SIZE_STR "100"
-typedef struct tar_header_t {       /* byte offset */
+typedef struct tar_header_t {     /* byte offset */
 	char name[NAME_SIZE];     /*   0-99 */
 	char mode[8];             /* 100-107 */
 	char uid[8];              /* 108-115 */
@@ -153,43 +156,39 @@ struct BUG_tar_header {
 
 
 
-/* Info struct unpackers can fill out to inform users of thing like
- * timestamps of unpacked files */
-typedef struct unpack_info_t {
-	time_t mtime;
-} unpack_info_t;
+archive_handle_t *init_handle(void) FAST_FUNC;
 
-extern archive_handle_t *init_handle(void) FAST_FUNC;
+char filter_accept_all(archive_handle_t *archive_handle) FAST_FUNC;
+char filter_accept_list(archive_handle_t *archive_handle) FAST_FUNC;
+char filter_accept_list_reassign(archive_handle_t *archive_handle) FAST_FUNC;
+char filter_accept_reject_list(archive_handle_t *archive_handle) FAST_FUNC;
 
-extern char filter_accept_all(archive_handle_t *archive_handle) FAST_FUNC;
-extern char filter_accept_list(archive_handle_t *archive_handle) FAST_FUNC;
-extern char filter_accept_list_reassign(archive_handle_t *archive_handle) FAST_FUNC;
-extern char filter_accept_reject_list(archive_handle_t *archive_handle) FAST_FUNC;
+void unpack_ar_archive(archive_handle_t *ar_archive) FAST_FUNC;
 
-extern void unpack_ar_archive(archive_handle_t *ar_archive) FAST_FUNC;
+void data_skip(archive_handle_t *archive_handle) FAST_FUNC;
+void data_extract_all(archive_handle_t *archive_handle) FAST_FUNC;
+void data_extract_to_stdout(archive_handle_t *archive_handle) FAST_FUNC;
+void data_extract_to_command(archive_handle_t *archive_handle) FAST_FUNC;
 
-extern void data_skip(archive_handle_t *archive_handle) FAST_FUNC;
-extern void data_extract_all(archive_handle_t *archive_handle) FAST_FUNC;
-extern void data_extract_to_stdout(archive_handle_t *archive_handle) FAST_FUNC;
-extern void data_extract_to_command(archive_handle_t *archive_handle) FAST_FUNC;
+void header_skip(const file_header_t *file_header) FAST_FUNC;
+void header_list(const file_header_t *file_header) FAST_FUNC;
+void header_verbose_list(const file_header_t *file_header) FAST_FUNC;
 
-extern void header_skip(const file_header_t *file_header) FAST_FUNC;
-extern void header_list(const file_header_t *file_header) FAST_FUNC;
-extern void header_verbose_list(const file_header_t *file_header) FAST_FUNC;
+char get_header_ar(archive_handle_t *archive_handle) FAST_FUNC;
+char get_header_cpio(archive_handle_t *archive_handle) FAST_FUNC;
+char get_header_tar(archive_handle_t *archive_handle) FAST_FUNC;
+char get_header_tar_gz(archive_handle_t *archive_handle) FAST_FUNC;
+char get_header_tar_bz2(archive_handle_t *archive_handle) FAST_FUNC;
+char get_header_tar_lzma(archive_handle_t *archive_handle) FAST_FUNC;
 
-extern char get_header_ar(archive_handle_t *archive_handle) FAST_FUNC;
-extern char get_header_cpio(archive_handle_t *archive_handle) FAST_FUNC;
-extern char get_header_tar(archive_handle_t *archive_handle) FAST_FUNC;
-extern char get_header_tar_gz(archive_handle_t *archive_handle) FAST_FUNC;
-extern char get_header_tar_bz2(archive_handle_t *archive_handle) FAST_FUNC;
-extern char get_header_tar_lzma(archive_handle_t *archive_handle) FAST_FUNC;
+void seek_by_jump(int fd, off_t amount) FAST_FUNC;
+void seek_by_read(int fd, off_t amount) FAST_FUNC;
 
-extern void seek_by_jump(int fd, off_t amount) FAST_FUNC;
-extern void seek_by_read(int fd, off_t amount) FAST_FUNC;
+const char *strip_unsafe_prefix(const char *str) FAST_FUNC;
 
-extern void data_align(archive_handle_t *archive_handle, unsigned boundary) FAST_FUNC;
-extern const llist_t *find_list_entry(const llist_t *list, const char *filename) FAST_FUNC;
-extern const llist_t *find_list_entry2(const llist_t *list, const char *filename) FAST_FUNC;
+void data_align(archive_handle_t *archive_handle, unsigned boundary) FAST_FUNC;
+const llist_t *find_list_entry(const llist_t *list, const char *filename) FAST_FUNC;
+const llist_t *find_list_entry2(const llist_t *list, const char *filename) FAST_FUNC;
 
 /* A bit of bunzip2 internals are exposed for compressed help support: */
 typedef struct bunzip_data bunzip_data;
@@ -199,39 +198,46 @@ int start_bunzip(bunzip_data **bdp, int in_fd, const void *inbuf, int len) FAST_
 int read_bunzip(bunzip_data *bd, char *outbuf, int len) FAST_FUNC;
 void dealloc_bunzip(bunzip_data *bd) FAST_FUNC;
 
-typedef struct inflate_unzip_result {
-	off_t bytes_out;
-	uint32_t crc;
-} inflate_unzip_result;
+/* Meaning and direction (input/output) of the fields are transformer-specific */
+typedef struct transformer_aux_data_t {
+	smallint check_signature; /* most often referenced member */
+	off_t    bytes_out;
+	off_t    bytes_in;  /* used in unzip code only: needs to know packed size */
+	uint32_t crc32;
+	time_t   mtime;     /* gunzip code may set this on exit */
+} transformer_aux_data_t;
 
-IF_DESKTOP(long long) int inflate_unzip(inflate_unzip_result *res, off_t compr_size, int src_fd, int dst_fd) FAST_FUNC;
-/* xz unpacker takes .xz stream from offset 6 */
-IF_DESKTOP(long long) int unpack_xz_stream(int src_fd, int dst_fd) FAST_FUNC;
-/* lzma unpacker takes .lzma stream from offset 0 */
-IF_DESKTOP(long long) int unpack_lzma_stream(int src_fd, int dst_fd) FAST_FUNC;
-/* the rest wants 2 first bytes already skipped by the caller */
-IF_DESKTOP(long long) int unpack_bz2_stream(int src_fd, int dst_fd) FAST_FUNC;
-IF_DESKTOP(long long) int unpack_gz_stream(int src_fd, int dst_fd) FAST_FUNC;
-IF_DESKTOP(long long) int unpack_gz_stream_with_info(int src_fd, int dst_fd, unpack_info_t *info) FAST_FUNC;
-IF_DESKTOP(long long) int unpack_Z_stream(int src_fd, int dst_fd) FAST_FUNC;
-/* wrapper which checks first two bytes to be "BZ" */
-IF_DESKTOP(long long) int unpack_bz2_stream_prime(int src_fd, int dst_fd) FAST_FUNC;
+void init_transformer_aux_data(transformer_aux_data_t *aux) FAST_FUNC;
+int FAST_FUNC check_signature16(transformer_aux_data_t *aux, int src_fd, unsigned magic16) FAST_FUNC;
+
+IF_DESKTOP(long long) int inflate_unzip(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
+IF_DESKTOP(long long) int unpack_Z_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
+IF_DESKTOP(long long) int unpack_gz_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
+IF_DESKTOP(long long) int unpack_bz2_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
+IF_DESKTOP(long long) int unpack_lzma_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
+IF_DESKTOP(long long) int unpack_xz_stream(transformer_aux_data_t *aux, int src_fd, int dst_fd) FAST_FUNC;
 
 char* append_ext(char *filename, const char *expected_ext) FAST_FUNC;
 int bbunpack(char **argv,
-	    IF_DESKTOP(long long) int FAST_FUNC (*unpacker)(unpack_info_t *info),
+	    IF_DESKTOP(long long) int FAST_FUNC (*unpacker)(transformer_aux_data_t *aux),
 	    char* FAST_FUNC (*make_new_name)(char *filename, const char *expected_ext),
 	    const char *expected_ext
 ) FAST_FUNC;
 
+void check_errors_in_children(int signo);
 #if BB_MMU
 void open_transformer(int fd,
-	IF_DESKTOP(long long) int FAST_FUNC (*transformer)(int src_fd, int dst_fd)) FAST_FUNC;
-#define open_transformer(fd, transformer, transform_prog) open_transformer(fd, transformer)
+	int check_signature,
+	IF_DESKTOP(long long) int FAST_FUNC (*transformer)(transformer_aux_data_t *aux, int src_fd, int dst_fd)
+) FAST_FUNC;
+#define open_transformer_with_sig(fd, transformer, transform_prog) open_transformer((fd), 1, (transformer))
+#define open_transformer_with_no_sig(fd, transformer)              open_transformer((fd), 0, (transformer))
 #else
-void open_transformer(int src_fd, const char *transform_prog) FAST_FUNC;
-#define open_transformer(fd, transformer, transform_prog) open_transformer(fd, transform_prog)
+void open_transformer(int fd, const char *transform_prog) FAST_FUNC;
+#define open_transformer_with_sig(fd, transformer, transform_prog) open_transformer((fd), (transform_prog))
+/* open_transformer_with_no_sig() does not exist on NOMMU */
 #endif
+
 
 POP_SAVED_FUNCTION_VISIBILITY
 
