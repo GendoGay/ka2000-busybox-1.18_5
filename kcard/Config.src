@@ -1,0 +1,94 @@
+#
+# For a description of the syntax of this configuration file,
+# see scripts/kbuild/config-language.txt.
+#
+
+menu "KCard Utilities"
+
+INSERT
+
+config KCARD_APP
+	bool "kcard_app"
+	default y
+	help
+	  kcard main program.
+
+config KCARD_STARTUP
+	bool "kcard_startup"
+	default y
+	help
+	  kcard startup main program.
+
+config BUZZER
+	bool "buzzer"
+	default y
+	help
+	  kcard buzzer program.
+
+config  WIFI_FTP_SERVER
+	bool "wifi_ftp_server"
+	default y
+	help
+	  kcard wifi p2p ftp receiver program.
+
+config  WIFI_QUICK_SEND
+	bool "wifi_quick_send"
+	default y
+	help
+	  kcard wifi quick send to another wifisd ftp server program.
+
+config  WIFI_GET_CONFIG 
+	bool "wifi_get_config"
+	default y
+	help
+	  kcard wifi_get_config program.
+
+config  WIFI_FTP_UPLOAD
+	bool "wifi_ftp_upload"
+	default y
+	help
+	  kcard wifi_ftp_upload program.
+
+config  WIFI_CONNECT_ROUTER
+	bool "wifi_connect_router"
+	default y
+	help
+	  kcard wifi_connect_router program.
+
+config  THUMBNAIL 
+	bool "thumbNail"
+	default y
+	help
+	  kcard thumbNail program for picture.
+
+config  THUMBNAIL_VIDEO 
+	bool "thumbnail_video"
+	default y
+	help
+	  kcard thumbNail program for video.
+
+config WIFI_DOWNLOAD
+        bool "wifi_download"
+        default y
+        help 
+          kcard WiFi download program.
+
+config WIFI_UPLOAD
+        bool "wifi_upload"
+        default y
+        help 
+          kcard WiFi upload program.
+		  
+config WIFI_FILELIST
+        bool "wifi_filelist"
+        default y
+        help 
+          kcard WiFi get file list program.	
+		  
+config KCARD_CMD
+	bool "kcard_cmd"
+	default y
+	help
+	  kcard commands : set sleep enable/disable program.		  
+
+endmenu

@@ -1,5 +1,5 @@
-# ka2000-busybox-1.18_5
-Baseline and changes for busybox 1.18_5 from KeyASIC 2000 SDK.
+# ka2000-busybox-1.1x_x
+Baseline and changes for busybox 1.18_5/1.20-2 from KeyASIC 2000 SDK.
 
 This repository contains changes made by KeyASIC for [WiFi-SD](https://github.com/cafk/ka2000-linux-2.6.32.28) SDK.
 
@@ -35,5 +35,6 @@ http://dmitry.gr/?r=05.Projects&proj=15.%20Transcend%20WiFiSD
 General info on WiFi SD Cards:  
 https://wikidevi.com/wiki/List_of_Wi-Fi_Flash_SD_Cards  
 https://randomprojects.org/wiki/SD_wifi_cards  
+
 
 

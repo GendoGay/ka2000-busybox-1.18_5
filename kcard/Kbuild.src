@@ -1,0 +1,23 @@
+# Makefile for busybox
+#
+# Copyright (C) 1999-2005 by Erik Andersen <andersen@codepoet.org>
+#
+# Licensed under GPLv2, see file LICENSE in this source tree.
+
+lib-y:=
+
+INSERT
+
+lib-$(CONFIG_KCARD_APP) += kcard_app.o
+lib-$(CONFIG_BUZZER) += buzzer.o
+lib-$(CONFIG_KCARD_STARTUP) += kcard_startup.o kionix_kxte9_driver.o
+lib-$(CONFIG_WIFI_GET_CONFIG) += wifi_get_config.o 
+lib-$(CONFIG_WIFI_FTP_UPLOAD) += wifi_ftp_upload.o 
+lib-$(CONFIG_WIFI_FTP_SERVER) += wifi_ftp_server.o 
+lib-$(CONFIG_WIFI_CONNECT_ROUTER) += wifi_connect_router.o 
+lib-$(CONFIG_THUMBNAIL) += thumbNail.o 
+lib-$(CONFIG_THUMBNAIL_VIDEO) += thumbnail_video.o 
+lib-$(CONFIG_WIFI_DOWNLOAD) += wifi_download.o 
+lib-$(CONFIG_WIFI_UPLOAD) += wifi_upload.o 
+lib-$(CONFIG_WIFI_FILELIST) += wifi_filelist.o 
+lib-$(CONFIG_KCARD_CMD) += kcard_cmd.o 
