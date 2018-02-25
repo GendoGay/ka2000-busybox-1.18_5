@@ -1,0 +1,13 @@
+#
+# For a description of the syntax of this configuration file,
+# see scripts/kbuild/config-language.txt.
+#
+
+menu "SSMTP Utilities"
+
+INSERT
+
+config SSMTP
+	bool "ssmtp-2.64"
+	default y
+endmenu

@@ -100,6 +100,7 @@ int klogctl(int type, char *b, int len);
 #if !defined __FreeBSD__
 char *dirname(char *path);
 #endif
+#if 0
 /* Include our own copy of struct sysinfo to avoid binary compatibility
  * problems with Linux 2.4, which changed things.  Grumble, grumble. */
 struct sysinfo {
@@ -119,6 +120,7 @@ struct sysinfo {
 	char _f[20 - 2 * sizeof(long) - sizeof(int)]; /* Padding: libc5 uses this.. */
 };
 int sysinfo(struct sysinfo* info);
+#endif
 #ifndef PATH_MAX
 # define PATH_MAX 256
 #endif

@@ -1,0 +1,47 @@
+#
+# For a description of the syntax of this configuration file,
+# see scripts/kbuild/config-language.txt.
+#
+
+menu "Wireless Utilities"
+
+INSERT
+
+config IWLIST
+	bool "iwlist"
+	default y
+
+config IWCONFIG
+	bool "iwconfig"
+	default y
+
+config IWPRIV
+	bool "iwpriv"
+	default y
+
+config IWSPY
+	bool "iwspy"
+	default y
+
+config IWGETID
+	bool "iwgetid"
+	default y
+
+config IWEVENT
+	bool "iwevent"
+	default y
+
+config IFRENAME
+	bool "ifrename"
+	default y
+
+config MACADDR
+	bool "macaddr"
+	default y
+
+config STATUS
+	bool "status"
+	
+	
+
+endmenu
