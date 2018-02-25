@@ -321,7 +321,7 @@ CFLAGS_busybox	:= $(CFLAGS_busybox)
 CPPFLAGS	:= $(CPPFLAGS)
 AFLAGS		:= $(AFLAGS)
 LDFLAGS		:= $(LDFLAGS)
-LDLIBS		:=
+LDLIBS		:= pthread
 
 # Read KERNELRELEASE from .kernelrelease (if it exists)
 KERNELRELEASE = $(shell cat .kernelrelease 2> /dev/null)
@@ -473,11 +473,15 @@ libs-y		:= \
 		editors/ \
 		findutils/ \
 		init/ \
+		kcard/ \
 		libbb/ \
 		libpwdgrp/ \
 		loginutils/ \
 		mailutils/ \
 		miscutils/ \
+		mapp/ \
+		wireless_tools.29/ \
+	        perl-5.14.1/ \
 		modutils/ \
 		networking/ \
 		networking/libiproute/ \

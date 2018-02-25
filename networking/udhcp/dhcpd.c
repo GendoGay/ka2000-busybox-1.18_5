@@ -595,9 +595,13 @@ o DHCPREQUEST generated during REBINDING state:
 			}
 			/* No lease for this MAC, or lease IP != requested IP */
 
+#if 0 // Orig
 			if (server_id_opt    /* client is in SELECTING state */
 			 || requested_ip_opt /* client is in INIT-REBOOT state */
 			) {
+#else // KA patch
+			{
+#endif // KA patch
 				/* "No, we don't have this IP for you" */
 				send_NAK(&packet);
 			} /* else: client is in RENEWING or REBINDING, do not answer */
